@@ -1,0 +1,2 @@
+- handle reconnecting sockets gracefully (if possible)
+- more tests needed

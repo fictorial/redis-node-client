@@ -1,7 +1,3 @@
-// - handle reconnecting sockets gracefully (if possible)
-// - test pipelining; should work great
-// - any commands missing?
-
 exports.debug = true;
 
 function dputs(direction, data) {
