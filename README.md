@@ -2,7 +2,7 @@
 
 A Redis client implementation for Node which runs atop Google V8.
 
-This project lets you access a Redis instance using JavaScript.
+This project lets you access a Redis instance using server-side JavaScript.
 
 ## Uses
 
