@@ -103,7 +103,7 @@ function createCommandSender(commandName) {
     // Always push something, even if its null.
     // We need received replies to match number of entries in `callbacks`.
 
-    dputs('>', cmd + '\n.... (with callback ' + callback + ')');
+    dputs('>', cmd);
 
     callbacks.push({ cb:callback, cmd:commandName.toLowerCase() });
 
@@ -125,7 +125,7 @@ function handleBulkReply(reply, offset) {
   ++offset; // skip '$'
 
   var crlfIndex = reply.indexOf(CRLF, offset);
-  var valueLength = parseInt(reply.substr(offset, crlfIndex), 10);
+  var valueLength = parseInt(reply.substr(offset, crlfIndex - offset), 10);
 
   if (valueLength <= 0)
     throw "invalid length for data in bulk reply";
@@ -138,7 +138,7 @@ function handleMultiBulkReply(reply, offset) {
   ++offset; // skip '*'
 
   var crlfIndex = reply.indexOf(CRLF);
-  var count = parseInt(reply.substr(offset, crlfIndex), 10);
+  var count = parseInt(reply.substr(offset, crlfIndex - offset), 10);
 
   if (count <= 0)
     throw "invalid length for data in multi bulk reply";
@@ -158,7 +158,13 @@ function handleSingleLineReply(reply, offset) {
   ++offset; // skip '+'
 
   var crlfIndex = reply.indexOf(CRLF, offset);
-  var value = reply.substr(offset, crlfIndex);
+  var value = reply.substr(offset, crlfIndex - offset);
+
+  // Most single-line replies are '+OK' so convert such 
+  // to a true value. 
+
+  if (value === 'OK') 
+    value = true;
 
   return [ value, crlfIndex + 2 ];
 }
@@ -168,7 +174,7 @@ function handleIntegerReply(reply, offset) {
 
   var crlfIndex = reply.indexOf(CRLF, offset);
 
-  return [ parseInt(reply.substr(offset, crlfIndex), 10), crlfIndex + 2 ];
+  return [ parseInt(reply.substr(offset, crlfIndex - offset), 10), crlfIndex + 2 ];
 }
 
 function handleErrorReply(reply) {
@@ -177,9 +183,9 @@ function handleErrorReply(reply) {
   var crlfIndex = reply.indexOf(CRLF, offset);
 
   if (reply.indexOf("ERR ") != 0)
-    throw "something bad happened: " + reply.substr(offset, crlfIndex);
+    throw "something bad happened: " + reply.substr(offset, crlfIndex - offset);
 
-  throw reply.substr("ERR ".length, crlfIndex);
+  throw reply.substr(4, crlfIndex - 4);
 }
 
 var replyPrefixToHandler = {
@@ -228,7 +234,6 @@ conn.onReceive = function(data) {
     offset = resultData[1];
     var callback = callbacks.shift();
     if (callback && callback.cb) {
-      dputs('!', 'calling callback ' + callback.cb + ' for ' + callback.cmd);
       result = handleSpecialCases(callback.cmd, result);
       callback.cb(result);
     }
@@ -291,6 +296,6 @@ conn.onConnect = function() {
 
 conn.onDisconnect = function(hadError) {
   if (hadError) 
-    throw "disconnected from redis server in error";
+    throw "disconnected from redis server in error -- redis server up?";
 };
 

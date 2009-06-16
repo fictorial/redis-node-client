@@ -13,3 +13,5 @@ function onLoad() {
 
   setTimeout(runDemo, 1000);
 }
+
+puts("str=" + [].forEach);
