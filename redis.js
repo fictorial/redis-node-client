@@ -292,8 +292,5 @@ conn.onConnect = function() {
 conn.onDisconnect = function(hadError) {
   if (hadError) 
     throw "disconnected from redis server in error";
-
-  if (exports.userDisconnectCallback)
-    exports.userDisconnectCallback();
 };
 
