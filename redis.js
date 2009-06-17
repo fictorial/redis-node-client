@@ -1,12 +1,10 @@
 exports.debug = true;
 
-function dputs(direction, data) {
+function dprint(data) {
   if (!exports.debug || !data)
     return;
 
-  var debugData = data.replace(/\r\n/g, '\\r\\n');
-
-  puts(direction + ' ' + debugData);
+  print(data.replace(/\r\n/g, '\\r\\n') + "\n");
 }
 
 function maybeConvertToNumber(str) {
@@ -93,7 +91,7 @@ function createCommandSender(commandName) {
     }  
 
     if (!cmd) {
-      dputs('!', 'warning: unknown command ' + commandName);
+      dprint('warning: unknown command ' + commandName);
       return;
     }
       
@@ -103,7 +101,7 @@ function createCommandSender(commandName) {
     // Always push something, even if its null.
     // We need received replies to match number of entries in `callbacks`.
 
-    dputs('>', cmd);
+    dprint('> ' + cmd);
 
     callbacks.push({ cb:callback, cmd:commandName.toLowerCase() });
 
@@ -130,28 +128,30 @@ function handleBulkReply(reply, offset) {
   if (valueLength <= 0)
     throw "invalid length for data in bulk reply";
 
-  var value = reply.substr(crlfIndex + 2, valueLength);
-  return [ value, crlfIndex + 2 + valueLength + 2 ];
+  return [ reply.substr(crlfIndex + 2, valueLength), 
+           crlfIndex + 2 + valueLength + 2 ];
 }
 
 function handleMultiBulkReply(reply, offset) {
   ++offset; // skip '*'
 
-  var crlfIndex = reply.indexOf(CRLF);
+  var crlfIndex = reply.indexOf(CRLF, offset);
   var count = parseInt(reply.substr(offset, crlfIndex - offset), 10);
 
   if (count <= 0)
     throw "invalid length for data in multi bulk reply";
 
-  var entries = [];
+ offset = crlfIndex + 2;
 
-  for (var i = 0; i < count; ++i) {
-    var bulkReply = handleBulkReply(reply, offset);
-    entries.push(bulkReply[0]);
-    offset += bulkReply[1];
-  }
+ var entries = [];
 
-  return [ entries, offset + 2 ];
+ for (var i = 0; i < count; ++i) {
+   var bulkReply = handleBulkReply(reply, offset);
+   entries.push(bulkReply[0]);
+   offset = bulkReply[1];
+ }
+
+ return [ entries, offset ];
 }
 
 function handleSingleLineReply(reply, offset) {
@@ -160,8 +160,7 @@ function handleSingleLineReply(reply, offset) {
   var crlfIndex = reply.indexOf(CRLF, offset);
   var value = reply.substr(offset, crlfIndex - offset);
 
-  // Most single-line replies are '+OK' so convert such 
-  // to a true value. 
+  // Most single-line replies are '+OK' so convert such to a true value. 
 
   if (value === 'OK') 
     value = true;
@@ -174,10 +173,11 @@ function handleIntegerReply(reply, offset) {
 
   var crlfIndex = reply.indexOf(CRLF, offset);
 
-  return [ parseInt(reply.substr(offset, crlfIndex - offset), 10), crlfIndex + 2 ];
+  return [ parseInt(reply.substr(offset, crlfIndex - offset), 10), 
+           crlfIndex + 2 ];
 }
 
-function handleErrorReply(reply) {
+function handleErrorReply(reply, offset) {
   ++offset; // skip '-'
 
   var crlfIndex = reply.indexOf(CRLF, offset);
@@ -196,42 +196,53 @@ var replyPrefixToHandler = {
   '-': handleErrorReply
 };
 
-function dispatchReplyHandler(reply, offset) {
-  var prefix = reply.charAt(offset);
-
-  var replyHandler = replyPrefixToHandler[prefix];
-  if (!replyHandler)
-    throw "unknown response prefix: '" + prefix + "'";
-
-  return replyHandler(reply, offset);
-}
-
 function handleSpecialCases(command, result) {
-  if (command == 'info') {
+  switch (command) {
+  case 'info':
     var infoObject = {};
 
     result.split('\r\n').forEach(function(line) {
       var parts = line.split(':');
-
       if (parts.length == 2)
         infoObject[parts[0]] = maybeConvertToNumber(parts[1]);
     });
 
     result = infoObject;
+    break;
+
+  case 'keys':
+    result = result.split(' ');
+    break;
+
+  default:
+    break;
   }
 
   return result;
 }
 
 conn.onReceive = function(data) {
-  dputs('<', data);
+//  dprint('  0.........1.........2.........3.........4.........5.........6.........7.........8.........9.........1.........2.........3.........4.........5');
+//  dprint('  012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890');
+  dprint('< ' + data);
 
-  var offset = 0; 
+  if (data.length == 0) 
+    throw "empty response!";
 
+  // Try to find as many FULL responses that are present in the received data.
+
+  var offset = 0;
   while (offset < data.length) {
-    var resultData = dispatchReplyHandler(data, offset);
-    var result = resultData[0];
-    offset = resultData[1];
+    var replyPrefix = data.charAt(offset);
+
+    var replyHandler = replyPrefixToHandler[replyPrefix];
+    if (typeof(replyHandler) != 'function') 
+      throw "unknown response prefix: '" + replyPrefix + "' at offset " + offset;
+
+    var resultInfo = replyHandler(data, offset);
+    var result = resultInfo[0];
+    offset = resultInfo[1];
+
     var callback = callbacks.shift();
     if (callback && callback.cb) {
       result = handleSpecialCases(callback.cmd, result);
@@ -272,7 +283,7 @@ exports.sort = function(key, options, callback) {
            optAlpha + ' ';
   }
   
-  dputs('>', cmd);
+  dprint('> ' + cmd);
 
   conn.send(cmd);
 
