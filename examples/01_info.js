@@ -7,10 +7,14 @@ function runDemo() {
   redis.info(function(info) {
     for (var property in info) 
       puts('REDIS INFO: ' + property + "=" + info[property]);
+
+    redis.quit();
   });
 }
 
 function onLoad() {
+  redis.connect();
+
   // Now that the redis module has been loaded, wait a bit to let the redis
   // client connect to the server else we could issue commands before
   // a connection has been established.

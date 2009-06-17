@@ -1,2 +1,1 @@
 - handle reconnecting sockets gracefully (if possible)
-- more tests for SORT command needed

@@ -121,10 +121,7 @@ function formatBulk(commandName, commandArgs, argCount) {
   }
 
   var lastArg = commandArgs[argCount - 1];
-
   var cmd = args + ' ' + lastArg.length + CRLF + lastArg + CRLF;
-
-  debug(cmd);
 
   return cmd;
 }
@@ -343,7 +340,7 @@ exports.sort = function(key, options, callback) {
     var optGet = '';
     if (options.getPatterns) {
       options.getPatterns.forEach(function(pat) {
-        optGet = 'get ' + pat + ' ';
+        optGet += 'get ' + pat + ' ';
       });
     }
 
@@ -379,6 +376,8 @@ exports.sort = function(key, options, callback) {
 exports.quit = function() {
   if (conn.readyState != "open")
     fatal("connection is not open");
+
+  debug('> quit');
 
   conn.send('quit' + CRLF);
   conn.close();

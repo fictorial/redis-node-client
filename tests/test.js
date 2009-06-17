@@ -436,15 +436,160 @@ function test_type() {
 function test_move() {
   redis.move('list0', TEST_DB_NUMBER_FOR_MOVE, expectOne);
 
-  redis.select(TEST_DB_NUMBER_FOR_MOVE, function(result) {
-    assertTrue(result);
-    redis.exists('list0', expectOne);
+  redis.select(TEST_DB_NUMBER_FOR_MOVE, expectTrue);
+  redis.exists('list0', expectOne);
 
-    redis.select(TEST_DB_NUMBER, function(result) {
-      assertTrue(result);
-      redis.exists('list0', expectZero);
-    });
+  redis.select(TEST_DB_NUMBER, expectTrue);
+  redis.exists('list0', expectZero);
+}
+
+// Sort is a beast.
+//
+// $ redis-cli lrange x 0 -1
+// 1. 3
+// 2. 9
+// 3. 2
+// 4. 4
+//
+// $ redis-cli mget w_3 w_9 w_2 w_4
+// 1. 4
+// 2. 5
+// 3. 12
+// 4. 6
+//
+// $ redis-cli sort x by w_*
+// 1. 3
+// 2. 9
+// 3. 4
+// 4. 2
+//
+// When using 'by w_*' value x[i]'s effective value is w_{x[i]}.
+//
+// sort [ w_3, w_9, w_2, w_4 ] = sort [ 4, 5, 12, 6 ] 
+//                             = [ 4, 5, 6, 12 ] 
+//                             = [ w_3, w_9, w_4, w_2 ]
+//
+// Thus, sorting x 'by w_*' results in [ 3, 9, 4, 2 ]
+//
+// Once sorted redis can fetch entries at the keys indicated by the 'get' 
+// pattern.  If we specify 'get o_*', redis would fetch 
+// [ o_3, o_9, o_4, o_2 ] since our sorted list was [ 3, 9, 4, 2 ].
+//
+// $ redis-cli mget o_2 o_3 o_4 o_9
+// 1. buz
+// 2. foo
+// 3. baz
+// 4. bar
+//
+// $ redis-cli sort x by w_* get o_*
+// 1. foo
+// 2. bar
+// 3. baz
+// 4. buz
+//
+// One can specify multiple get patterns and the keys for each get pattern 
+// are interlaced in the results.
+//
+// $ redis-cli mget p_2 p_3 p_4 p_9
+// 1. qux
+// 2. bux
+// 3. lux
+// 4. tux
+//
+// $ redis-cli sort x by w_* get o_* get p_*
+// 1. foo
+// 2. bux
+// 3. bar
+// 4. tux
+// 5. baz
+// 6. lux
+// 7. buz
+// 8. qux
+//
+// Phew! Now, let's test all that.
+
+function test_sort() {
+//  redis.select(TEST_DB_NUMBER);
+
+  redis.del('x');  // just to be safe
+  redis.del('y');  // just to be safe
+  
+  redis.rpush('y', 'd', expectTrue);
+  redis.rpush('y', 'b', expectTrue);
+  redis.rpush('y', 'a', expectTrue);
+  redis.rpush('y', 'c', expectTrue);
+
+  redis.rpush('x', '3', expectTrue);
+  redis.rpush('x', '9', expectTrue);
+  redis.rpush('x', '2', expectTrue);
+  redis.rpush('x', '4', expectTrue);
+
+  redis.set('w_3', '4',  expectTrue);
+  redis.set('w_9', '5',  expectTrue);
+  redis.set('w_2', '12', expectTrue);
+  redis.set('w_4', '6',  expectTrue);
+  
+  redis.set('o_2', 'buz', expectTrue);
+  redis.set('o_3', 'foo', expectTrue);
+  redis.set('o_4', 'baz', expectTrue);
+  redis.set('o_9', 'bar', expectTrue);
+  
+  redis.set('p_2', 'qux', expectTrue);
+  redis.set('p_3', 'bux', expectTrue);
+  redis.set('p_4', 'lux', expectTrue);
+  redis.set('p_9', 'tux', expectTrue);
+
+  // Now the data has been setup, we can test.
+
+  // But first, test basic sorting.
+
+  // y = [ d b a c ]
+  // sort y ascending = [ a b c d ]
+  // sort y descending = [ d c b a ]
+
+  redis.sort('y', { lexicographically:true, ascending:true }, function(sorted) {
+    assertEquals(['a','b','c','d'], sorted);
   });
+
+  redis.sort('y', { lexicographically:true, ascending:false }, function(sorted) {
+    assertEquals(['d','c','b','a'], sorted);
+  });
+
+  // Now try sorting numbers in a list.
+  // x = [ 3, 9, 2, 4 ]
+  //
+  // Note: this will auto-convert the strings to integers (since the strings
+  // match /^\d+$/
+
+  redis.sort('x', { ascending:true }, function(sorted) {
+    assertEquals([2,3,4,9], sorted);
+  });
+
+  redis.sort('x', { ascending:false }, function(sorted) {
+    assertEquals([9,4,3,2], sorted);
+  });
+
+  // Try sorting with a 'by' pattern.
+  
+  redis.sort('x', { ascending:true, byPattern:'w_*' }, function(sorted) {
+    assertEquals([3,9,4,2], sorted);
+  });
+
+  // Try sorting with a 'by' pattern and 1 'get' pattern.
+
+  redis.sort('x', { ascending:true, byPattern:'w_*', getPatterns:['o_*'] }, 
+    function(sorted) {
+      assertEquals(['foo','bar','baz','buz'], sorted);
+    }
+  );
+
+  // Try sorting with a 'by' pattern and 2 'get' patterns.
+
+  redis.sort('x', { ascending:true, byPattern:'w_*', getPatterns:['o_*', 'p_*'] }, 
+    function(sorted) {
+      assertEquals(['foo','bux','bar','tux','baz','lux','buz','qux'], sorted);
+    }
+  );
 }
 
 function test_save() {
@@ -470,80 +615,10 @@ function test_shutdown() {
   node.debug("shutdown: skipped");
 }
 
-function test_sort() {
-  redis.rpush('sort0', 'd', function() { 
-  redis.rpush('sort0', 'b', function() { 
-  redis.rpush('sort0', 'a', function() { 
-  redis.rpush('sort0', 'c', function() {
-  redis.rpush('weight_1', '2', function() { 
-  redis.rpush('weight_2', '3', function() { 
-  redis.rpush('weight_3', '5', function() { 
-  redis.rpush('weight_4', '1', function() {
-  redis.rpush('obj_1', '42', function() { 
-  redis.rpush('obj_2', '8',  function() { 
-  redis.rpush('obj_3', '23', function() { 
-  redis.rpush('obj_4', '19', function() {
-  redis.rpush('sort1', '4', function() {
-  redis.rpush('sort1', '2', function() { 
-  redis.rpush('sort1', '1', function() { 
-  redis.rpush('sort1', '3', function() { 
-
-    // sort0 = [ d b a c ]
-
-    redis.sort('sort0', { lexicographically:true, ascending:true }, function(sorted) {
-      assertEquals(['a','b','c','d'], sorted);
-    });
-
-    redis.sort('sort0', { lexicographically:true, ascending:false }, function(sorted) {
-      assertEquals(['d','c','b','a'], sorted);
-    });
-
-    redis.sort('sort1', { ascending:true }, function(sorted) {
-      assertEquals([1,2,3,4], sorted);
-    });
-
-    redis.sort('sort1', { ascending:false }, function(sorted) {
-      assertEquals([4,3,2,1], sorted);
-    });
-
-    redis.sort('sort1', { limit:[0,2], ascending:false }, function(sorted) {
-      assertEquals([4,3], sorted);
-    });
-
-    // sort1                    = [ 4 2 1 3 ]
-    // weight_1                 = 2
-    // weight_2                 = 3
-    // weight_3                 = 5
-    // weight_4                 = 1
-    // sort1, weighted          = [ 4*1 2*3 1*2 3*5 ] = [ 4 6 2 15 ]
-    // sort(sort1, weighted)    = [ 2 4 6 15 ]
-    // sorted, weighted, sort1  = [ 1 4 2 3 ]
-    // obj_1                    = 42
-    // obj_2                    = 8
-    // obj_3                    = 23
-    // obj_4                    = 19
-    // sort(weighted) get obj_* = [ 42 19 8 23 ]
-
-// TODO this is failing:
-    redis.sort('sort1', { byPattern:'weight_*', ascending:true }, 
-      function(sorted) {
-        assertEquals([1,4,2,3], sorted);
-      }
-    );
-
-    redis.sort('sort1', { byPattern:'weight_*', getPatterns:['obj_*'], ascending:true }, 
-      function(sorted) {
-        sorted.forEach(function(v) { node.debug('SORTED VALUE = ' + v); });
-        assertEquals([42,19,8,23], sorted);
-      }
-    );
-  })})})})})})})})})})})})})})})});
-}
-
 // This is an array of test functions.  Order is important as we don't have
 // fixtures.  We test 'set' before 'get' for instance.
 
-var tests2 = [ 
+var tests = [ 
   test_auth, test_select, test_flushdb, test_set, test_setnx,
   test_get, test_mget, test_getset, test_info, test_incr, test_incrby, test_decr,
   test_decrby, test_exists, test_del, test_keys, test_randomkey, test_rename,
@@ -551,11 +626,9 @@ var tests2 = [
   test_llen, test_lrange, test_ltrim, test_lindex, test_lset, test_lrem,
   test_lpop, test_rpop, test_sadd, test_sismember, test_scard, test_srem,
   test_smembers, test_smove, test_sinter, test_sinterstore, test_sunion,
-  test_sunionstore, test_type, test_move, test_save, test_bgsave, test_lastsave,
-  test_flushall, test_shutdown, test_sort 
+  test_sunionstore, test_type, test_move, test_sort, test_save, test_bgsave, 
+  test_lastsave, test_flushall, test_shutdown
 ];
-
-var tests = [ test_select, test_sort ];
 
 function runTests() {
   print("Running tests, which include key expirations.  Please wait roughly 7-8 seconds.\n\n");
@@ -566,7 +639,18 @@ function runTests() {
   });
 
   node.debug("\n\n\nall tests submitted... waiting for expiration tests...\n\n");
-  setTimeout(redis.quit, 6000);
+
+  setTimeout(function() {
+    // Clean out the test databases.
+
+    redis.select(TEST_DB_NUMBER);
+    redis.flushdb();
+
+    redis.select(TEST_DB_NUMBER_FOR_MOVE);
+    redis.flushdb();
+
+    redis.quit();
+  }, 6000);
 }
 
 function onLoad() {
