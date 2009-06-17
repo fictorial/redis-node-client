@@ -6,9 +6,8 @@ This project lets you access a Redis instance using server-side JavaScript.
 
 ## Uses
 
-The following projects together form a web services implementation platform
-that is very easy to design for, develop for, and that is highly scalable and
-very easy to design (or play with), develop, and deploy.
+The following projects form a web services implementation platform that is
+highly scalable, and is very easy to design for, develop for, and deploy.
 
 * Google V8 ECMAScript interpreter
 * Node
