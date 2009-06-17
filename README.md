@@ -41,6 +41,12 @@ A potential upside to this slightly awkward requirement is that you can enjoy
 the benefits of pipelining many Redis queries in a non-blocking way.  Redis
 returns replies for requests in the order received.
 
+## Status
+
+* The full Redis command specification is supported as of June 17, 2009.
+* All tests pass.
+* See the TODO file for known issues.
+
 ## Author
 
 Brian Hammond, Fictorial

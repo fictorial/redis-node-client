@@ -509,8 +509,6 @@ function test_move() {
 // Phew! Now, let's test all that.
 
 function test_sort() {
-//  redis.select(TEST_DB_NUMBER);
-
   redis.del('x');  // just to be safe
   redis.del('y');  // just to be safe
   
@@ -557,9 +555,6 @@ function test_sort() {
 
   // Now try sorting numbers in a list.
   // x = [ 3, 9, 2, 4 ]
-  //
-  // Note: this will auto-convert the strings to integers (since the strings
-  // match /^\d+$/
 
   redis.sort('x', { ascending:true }, function(sorted) {
     assertEquals([2,3,4,9], sorted);
