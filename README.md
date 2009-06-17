@@ -6,14 +6,14 @@ This project lets you access a Redis instance using server-side JavaScript.
 
 ## Uses
 
-The following projects together form a web services implementation platform
-that is highly scalable and very easy to design (or play with), develop, and
-deploy.
+The following projects together form a wedesign for, develop for, and that is
+highly scalable and very easy to design (or play with), develop, and deploy.
 
 * Google V8 ECMAScript interpreter
 * Node
 * node-json-rpc
 * Redis
+* redis-node-client
 
 Google V8 can be found on Google Code.  The other projects are available on
 GitHub.
@@ -40,6 +40,8 @@ even if Redis queries are extremely fast.
 A potential upside to this slightly awkward requirement is that you can enjoy
 the benefits of pipelining many Redis queries in a non-blocking way.  Redis
 returns replies for requests in the order received.
+
+See the tests/test.js file as a good example of this.
 
 ## Status
 
