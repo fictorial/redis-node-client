@@ -196,13 +196,13 @@ function test_dbsize() {
 }
 
 function test_expire() {
-  // set 'too' to expire in one second 
+  // set 'too' to expire in 2 seconds
   redis.expire('too', 2, expectOneReply);
 
   // subsequent expirations cannot be set.
   redis.expire('too', 2, expectZeroReply);
 
-  // check that in 2 seconds that it's gone 
+  // check that in 4 seconds that it's gone 
   setTimeout(function() { redis.exists('too', expectZeroReply) }, 4000);
 }
 
