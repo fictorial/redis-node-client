@@ -1,53 +1,42 @@
-exports.debug = true;
-
-function dprint(data) {
-  if (!exports.debug || !data)
-    return;
-
-  print(data.replace(/\r\n/g, '\\r\\n') + "\n");
-}
-
-function maybeConvertToNumber(str) {
-  if (/^\s*\d+\s*$/.test(str)) 
-    return parseInt(str, 10);
-
-  if (/^\s*\d+\.(\d+)?\s*$/.test(str))
-    return parseFloat(str);
-
-  return str;
-}
+// redis.js - a Redis client for server-side JavaScript, in particular Node
+// which runs atop Google V8.
+//
+// Please review the Redis command reference and protocol specification:
+//
+// http://code.google.com/p/redis/wiki/CommandReference
+// http://code.google.com/p/redis/wiki/ProtocolSpecification
+//
+// This implementation should make for easy maintenance given that Redis
+// commands follow only a couple of conventions.  To add support for a new
+// command, simply add the name to either 'inlineCommands' or 'bulkCommands'
+// below.
+//
+// Replies are handled generically and shouldn't need any updates unless Redis
+// adds a completely new response type (other than status code, integer, error,
+// bulk, and multi-bulk).  See http://code.google.com/p/redis/wiki/ReplyTypes
+//
+// To learn more about Node and Google V8, see http://tinyclouds.org/node/ and
+// http://code.google.com/p/v8/ respectively.
+//
+// Brian Hammond, Fictorial, June 2009
 
 var conn = new node.tcp.Connection();
-conn.connect(6379, '127.0.0.1');
+
+// Connect to redis server.  This is most commonly to a redis-server instance
+// running on the same host.
+
+exports.connect = function(port, host) {
+  port = port || 6379;
+  host = host || '127.0.0.1';
+
+  conn.connect(port, host);
+}
 
 var CRLF = "\r\n";
+var CRLF_LENGTH = 2;
 
-function formatInline(commandName, commandArgs, argCount) {
-  var str = commandName;
-
-  for (var i = 0; i < argCount; ++i)
-    str += ' ' + commandArgs[i];
-
-  return str + CRLF;
-}
-
-function formatBulk(commandName, commandArgs, argCount) {
-  var payload = '';
-
-  for (var i = 1; i < argCount; ++i) {
-    payload += commandArgs[i];
-
-    if (i < argCount - 1)
-      payload += ' ';
-  }
-
-  return commandName    + ' '  + 
-         commandArgs[0] + ' '  + 
-         payload.length + CRLF + 
-         payload        + CRLF;
-}
-
-// NB: sort and quit are handled as special cases.
+// Commands supported by Redis (as of June, 2009).
+// Note: 'sort' and 'quit' are handled as special cases.
 
 var inlineCommands = {
   auth:1,        get:1,         mget:1,        incr:1,        incrby:1,
@@ -66,10 +55,87 @@ var bulkCommands = {
   sismember:1
 };
 
+// callbacks:
+// Node is event driven / asynchronous with respect to all I/O.  Thus, we call
+// user code back when we parse Redis responses.  Note: redis responds in the
+// same order as commands are sent.  Thus, pipelining is perfectly valid.  See
+// the unit test(s) for examples of callbacks.
+
 var callbacks = [];
+
+// debugMode:
+// We don't use print() or puts() immediately as they are asynchronous in Node;
+// the instant there's a runtime error raised by V8, any pending I/O in Node is
+// dropped.  Thus, we simply append to a string.  When *we* cause a runtime
+// error via throw in debugMode, we dump all output, *then* throw.  This is
+// useful for, well, debugging.  Otherwise, turn off debugMode (which is the
+// default).
+
+exports.debugMode = false;
+
+function debug(data) {
+  if (!exports.debugMode || !data)
+    return;
+
+  node.debug(data.replace(/\r\n/g, '\\r\\n'));
+}
+
+function fatal(errorMessage) {
+  debug("\n\nFATAL: " + errorMessage + "\n");
+  throw errorMessage;
+}
+
+function maybeConvertToNumber(str) {
+  if (/^\s*\d+\s*$/.test(str)) 
+    return parseInt(str, 10);
+
+  if (/^\s*\d+\.(\d+)?\s*$/.test(str))
+    return parseFloat(str);
+
+  return str;
+}
+
+// Format an inline redis command.
+// See http://code.google.com/p/redis/wiki/ProtocolSpecification#Simple_INLINE_commands
+
+function formatInline(commandName, commandArgs, argCount) {
+  var str = commandName;
+
+  for (var i = 0; i < argCount; ++i)
+    str += ' ' + commandArgs[i];
+
+  return str + CRLF;
+}
+
+// Format a bulk redis command.
+// e.g. lset key index value => lset key index value-length\r\nvalue\r\n
+// where lset is commandName; key, index, and value are commandArgs
+// See http://code.google.com/p/redis/wiki/ProtocolSpecification#Bulk_commands
+
+function formatBulk(commandName, commandArgs, argCount) {
+  var args = commandName;
+
+  for (var i = 0; i < argCount - 1; ++i) {
+    var val = typeof(commandArgs[i]) != 'string' ? commandArgs[i].toString() : commandArgs[i];
+    args += ' ' + val;
+  }
+
+  var lastArg = commandArgs[argCount - 1];
+
+  var cmd = args + ' ' + lastArg.length + CRLF + lastArg + CRLF;
+
+  debug(cmd);
+
+  return cmd;
+}
+
+// Creates a function to send a command to the redis server.
 
 function createCommandSender(commandName) {
   return function() {
+    if (conn.readyState != "open") 
+      fatal("connection is not open");
+
     // last arg (if any) should be callback function.
 
     var callback = null;
@@ -88,26 +154,21 @@ function createCommandSender(commandName) {
       cmd = formatInline(commandName, arguments, numArgs);
     } else if (bulkCommands[commandName]) {
       cmd = formatBulk(commandName, arguments, numArgs);
-    }  
-
-    if (!cmd) {
-      dprint('warning: unknown command ' + commandName);
-      return;
+    } else { 
+      fatal('unknown command ' + commandName);
     }
       
-    if (conn.readyState != "open")
-      throw "connection is not open";
+    debug('> ' + cmd);
 
     // Always push something, even if its null.
     // We need received replies to match number of entries in `callbacks`.
 
-    dprint('> ' + cmd);
-
     callbacks.push({ cb:callback, cmd:commandName.toLowerCase() });
-
     conn.send(cmd);
   };
 }
+
+// Create command senders for all commands.
 
 for (var commandName in inlineCommands)
   exports[commandName] = createCommandSender(commandName);
@@ -115,9 +176,8 @@ for (var commandName in inlineCommands)
 for (var commandName in bulkCommands)
   exports[commandName] = createCommandSender(commandName);
 
-// All reply handlers are passed the full received data which
-// may contain multiple replies.  Each should return 
-// [ replyData, offsetOfNextReply ]
+// All reply handlers are passed the full received data which may contain
+// multiple replies.  Each should return [ result, offsetOfFollowingReply ]
 
 function handleBulkReply(reply, offset) {
   ++offset; // skip '$'
@@ -125,11 +185,15 @@ function handleBulkReply(reply, offset) {
   var crlfIndex = reply.indexOf(CRLF, offset);
   var valueLength = parseInt(reply.substr(offset, crlfIndex - offset), 10);
 
-  if (valueLength <= 0)
-    throw "invalid length for data in bulk reply";
+  if (valueLength == -1) 
+    return [ null, crlfIndex + CRLF_LENGTH ];
 
-  return [ reply.substr(crlfIndex + 2, valueLength), 
-           crlfIndex + 2 + valueLength + 2 ];
+  var value = reply.substr(crlfIndex + CRLF_LENGTH, valueLength);
+
+  var nextOffset = crlfIndex   + CRLF_LENGTH + 
+                   valueLength + CRLF_LENGTH;
+
+  return [ value, nextOffset ];
 }
 
 function handleMultiBulkReply(reply, offset) {
@@ -138,20 +202,20 @@ function handleMultiBulkReply(reply, offset) {
   var crlfIndex = reply.indexOf(CRLF, offset);
   var count = parseInt(reply.substr(offset, crlfIndex - offset), 10);
 
-  if (count <= 0)
-    throw "invalid length for data in multi bulk reply";
+  offset = crlfIndex + CRLF_LENGTH;
 
- offset = crlfIndex + 2;
+  if (count === -1) 
+    return [ null, offset ];
 
- var entries = [];
+  var entries = [];
 
- for (var i = 0; i < count; ++i) {
-   var bulkReply = handleBulkReply(reply, offset);
-   entries.push(bulkReply[0]);
-   offset = bulkReply[1];
- }
+  for (var i = 0; i < count; ++i) {
+    var bulkReply = handleBulkReply(reply, offset);
+    entries.push(bulkReply[0]);
+    offset = bulkReply[1];
+  }
 
- return [ entries, offset ];
+  return [ entries, offset ];
 }
 
 function handleSingleLineReply(reply, offset) {
@@ -165,7 +229,7 @@ function handleSingleLineReply(reply, offset) {
   if (value === 'OK') 
     value = true;
 
-  return [ value, crlfIndex + 2 ];
+  return [ value, crlfIndex + CRLF_LENGTH ];
 }
 
 function handleIntegerReply(reply, offset) {
@@ -174,7 +238,7 @@ function handleIntegerReply(reply, offset) {
   var crlfIndex = reply.indexOf(CRLF, offset);
 
   return [ parseInt(reply.substr(offset, crlfIndex - offset), 10), 
-           crlfIndex + 2 ];
+           crlfIndex + CRLF_LENGTH ];
 }
 
 function handleErrorReply(reply, offset) {
@@ -182,11 +246,14 @@ function handleErrorReply(reply, offset) {
 
   var crlfIndex = reply.indexOf(CRLF, offset);
 
-  if (reply.indexOf("ERR ") != 0)
-    throw "something bad happened: " + reply.substr(offset, crlfIndex - offset);
+  var errorMessage = (reply.indexOf("ERR ") != 0)
+    ? "something bad happened: " + reply.substr(offset, crlfIndex - offset)
+    : reply.substr(4, crlfIndex - 4);
 
-  throw reply.substr(4, crlfIndex - 4);
+  fatal(errorMessage);
 }
+
+// See http://code.google.com/p/redis/wiki/ReplyTypes
 
 var replyPrefixToHandler = {
   '$': handleBulkReply,
@@ -196,7 +263,10 @@ var replyPrefixToHandler = {
   '-': handleErrorReply
 };
 
-function handleSpecialCases(command, result) {
+// INFO output is an object with properties for each server metadatum.
+// KEYS output is a list (which is more intuitive than a ws-delimited string).
+
+function postProcessResults(command, result) {
   switch (command) {
   case 'info':
     var infoObject = {};
@@ -214,6 +284,10 @@ function handleSpecialCases(command, result) {
     result = result.split(' ');
     break;
 
+  case 'lastsave':
+    result = maybeConvertToNumber(result);
+    break;
+
   default:
     break;
   }
@@ -222,22 +296,20 @@ function handleSpecialCases(command, result) {
 }
 
 conn.onReceive = function(data) {
-//  dprint('  0.........1.........2.........3.........4.........5.........6.........7.........8.........9.........1.........2.........3.........4.........5');
-//  dprint('  012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890');
-  dprint('< ' + data);
+  if (exports.debugMode) 
+    debug('< ' + data);
 
   if (data.length == 0) 
-    throw "empty response!";
-
-  // Try to find as many FULL responses that are present in the received data.
+    fatal("empty response");
 
   var offset = 0;
+
   while (offset < data.length) {
     var replyPrefix = data.charAt(offset);
-
     var replyHandler = replyPrefixToHandler[replyPrefix];
-    if (typeof(replyHandler) != 'function') 
-      throw "unknown response prefix: '" + replyPrefix + "' at offset " + offset;
+
+    if (!replyHandler) 
+      fatal("unknown prefix " + replyPrefix + " in reply @ offset " + offset);
 
     var resultInfo = replyHandler(data, offset);
     var result = resultInfo[0];
@@ -245,7 +317,7 @@ conn.onReceive = function(data) {
 
     var callback = callbacks.shift();
     if (callback && callback.cb) {
-      result = handleSpecialCases(callback.cmd, result);
+      result = postProcessResults(callback.cmd, result);
       callback.cb(result);
     }
   }
@@ -255,35 +327,44 @@ conn.onReceive = function(data) {
 // options is an object which can have the following properties:
 //   'byPattern': 'pattern'
 //   'limit': [start, end]
-//   'getPattern': 'pattern'
+//   'getPatterns': [ 'pattern', 'pattern', ... ]
 //   'ascending': true|false
 //   'lexicographically': true|false
 
 exports.sort = function(key, options, callback) {
   if (conn.readyState != "open")
-    throw "connection is not open";
+    fatal("connection is not open");
 
   var cmd = 'sort ' + key;
 
   if (typeof(options) == 'object') {
-    var optBy  = options.byPattern  ? ('by '  + options.byPattern)  : '';
-    var optGet = options.getPattern ? ('get ' + options.getPattern) : '';
+    var optBy = options.byPattern ? ('by ' + options.byPattern) : '';
 
-    var optAsc   = options.ascending         ? 'asc'   : '';
+    var optGet = '';
+    if (options.getPatterns) {
+      options.getPatterns.forEach(function(pat) {
+        optGet = 'get ' + pat + ' ';
+      });
+    }
+
+    var optAsc   = options.ascending         ? ''      : 'desc';
     var optAlpha = options.lexicographically ? 'alpha' : '';
 
-    var optLimit = options.optLimit 
+    var optLimit = options.limit 
       ? 'limit ' + options.limit[0] + ' ' + options.limit[1] 
       : '';
 
-    cmd += optBy    + ' ' +
-           optLimit + ' ' +
-           optGet   + ' ' +
-           optAsc   + ' ' + 
-           optAlpha + ' ';
+    cmd += ' ' + optBy    + ' ' +
+                 optLimit + ' ' +
+                 optGet   + ' ' +
+                 optAsc   + ' ' + 
+                 optAlpha + ' ' + CRLF;
+
+    cmd = cmd.replace(/\s+$/, '') + CRLF;
   }
   
-  dprint('> ' + cmd);
+  if (exports.debugMode) 
+    debug('> ' + cmd);
 
   conn.send(cmd);
 
@@ -293,20 +374,21 @@ exports.sort = function(key, options, callback) {
   callbacks.push({ cb:callback, cmd:'sort' });
 }
 
+// Close the connection.
+
 exports.quit = function() {
   if (conn.readyState != "open")
-    throw "connection is not open";
+    fatal("connection is not open");
 
   conn.send('quit' + CRLF);
   conn.close();
-};
+}
 
 conn.onConnect = function() {
   conn.setEncoding("utf8");
-};
+}
 
 conn.onDisconnect = function(hadError) {
   if (hadError) 
-    throw "disconnected from redis server in error -- redis server up?";
-};
-
+    fatal("disconnected from redis server in error -- redis server up?");
+}

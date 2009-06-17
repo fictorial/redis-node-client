@@ -1,2 +1,2 @@
 - handle reconnecting sockets gracefully (if possible)
-- more tests needed
+- more tests for SORT command needed
