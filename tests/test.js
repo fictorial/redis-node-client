@@ -633,6 +633,18 @@ var tests = [
 function runTests() {
   print("Running tests, which include key expirations.  Please wait roughly 7-8 seconds.\n\n");
 
+  // Clear out any previous half-baked test runs.
+
+  redis.select(TEST_DB_NUMBER);
+  redis.flushdb();
+
+  redis.select(TEST_DB_NUMBER_FOR_MOVE);
+  redis.flushdb();
+
+  redis.select(TEST_DB_NUMBER);
+
+  // Run each test.
+
   tests.forEach(function(test) { 
     node.debug(test.name);
     test();
