@@ -29,6 +29,8 @@ exports.connect = function(port, host) {
   port = port || 6379;
   host = host || '127.0.0.1';
 
+  node.debug('connecting to ' + host + ':' + port);
+
   conn.connect(port, host);
 }
 
@@ -116,11 +118,17 @@ function formatBulk(commandName, commandArgs, argCount) {
   var args = commandName;
 
   for (var i = 0; i < argCount - 1; ++i) {
-    var val = typeof(commandArgs[i]) != 'string' ? commandArgs[i].toString() : commandArgs[i];
+    var val = typeof(commandArgs[i]) != 'string' 
+      ? commandArgs[i].toString() 
+      : commandArgs[i];
+
     args += ' ' + val;
   }
 
-  var lastArg = commandArgs[argCount - 1];
+  var lastArg = typeof(commandArgs[argCount - 1]) != 'string' 
+    ? commandArgs[argCount - 1].toString() 
+    : commandArgs[argCount - 1];
+
   var cmd = args + ' ' + lastArg.length + CRLF + lastArg + CRLF;
 
   return cmd;

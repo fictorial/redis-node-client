@@ -610,6 +610,11 @@ function test_shutdown() {
   node.debug("shutdown: skipped");
 }
 
+function test_set_number() {
+  redis.set('ggg', '123', expectTrue);
+  redis.set('ggg', 123, expectTrue);
+}
+
 // This is an array of test functions.  Order is important as we don't have
 // fixtures.  We test 'set' before 'get' for instance.
 
@@ -622,7 +627,7 @@ var tests = [
   test_lpop, test_rpop, test_sadd, test_sismember, test_scard, test_srem,
   test_smembers, test_smove, test_sinter, test_sinterstore, test_sunion,
   test_sunionstore, test_type, test_move, test_sort, test_save, test_bgsave, 
-  test_lastsave, test_flushall, test_shutdown
+  test_lastsave, test_flushall, test_shutdown, test_set_number
 ];
 
 function runTests() {
