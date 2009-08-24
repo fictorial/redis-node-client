@@ -305,7 +305,7 @@ function postProcessResults(command, result) {
   return result;
 }
 
-conn.onReceive = function(data) {
+conn.addListener("receive", function(data){
   if (exports.debugMode) 
     debug('< ' + data);
 
@@ -331,7 +331,7 @@ conn.onReceive = function(data) {
       callback.cb(result);
     }
   }
-};
+});
 
 // Read this first: http://code.google.com/p/redis/wiki/SortCommand
 // options is an object which can have the following properties:
@@ -396,7 +396,7 @@ exports.quit = function() {
   conn.close();
 }
 
-conn.onDisconnect = function(hadError) {
+conn.addListener("close", function(hadError){
   if (hadError) 
     fatal("disconnected from redis server in error -- redis server up?");
-}
+});
