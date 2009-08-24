@@ -32,6 +32,8 @@ exports.connect = function(port, host) {
   node.debug('connecting to ' + host + ':' + port);
 
   conn.connect(port, host);
+  
+  return conn;
 }
 
 var CRLF = "\r\n";
