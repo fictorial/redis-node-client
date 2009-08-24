@@ -766,9 +766,5 @@ function runTests() {
 function onLoad() {
   redis.debugMode = true;
 
-  redis.connect();
-
-  // Let redis client connect to server.
-
-  setTimeout(runTests, 1000);
+  redis.connect(runTests);
 }

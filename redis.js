@@ -25,7 +25,7 @@ var conn = new node.tcp.Connection();
 // Connect to redis server.  This is most commonly to a redis-server instance
 // running on the same host.
 
-exports.connect = function(port, host) {
+exports.connect = function(onConnect, port, host) {
   port = port || 6379;
   host = host || '127.0.0.1';
 
@@ -33,7 +33,10 @@ exports.connect = function(port, host) {
 
   conn.connect(port, host);
   
-  return conn;
+  conn.addListener("connect", function(){
+    conn.setEncoding("utf8");
+    onConnect();
+  });
 }
 
 var CRLF = "\r\n";
@@ -391,10 +394,6 @@ exports.quit = function() {
 
   conn.send('quit' + CRLF);
   conn.close();
-}
-
-conn.onConnect = function() {
-  conn.setEncoding("utf8");
 }
 
 conn.onDisconnect = function(hadError) {
