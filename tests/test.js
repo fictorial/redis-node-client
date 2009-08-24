@@ -491,7 +491,7 @@ function test_sunion() {
 
 function test_sunionstore() {
   unexecuted_callbacks++;
-  redis.sunionstore('union-dst', 'sa', 'sb', 'sc', function(cardinality) { assertEquals(5, cardinality); unexecuted_callback-- });
+  redis.sunionstore('union-dst', 'sa', 'sb', 'sc', function(cardinality) { assertEquals(5, cardinality); unexecuted_callbacks-- });
 
   unexecuted_callbacks++;
   redis.smembers('union-dst', function(members) { 
