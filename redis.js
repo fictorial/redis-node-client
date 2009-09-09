@@ -25,13 +25,18 @@ var conn = new node.tcp.Connection();
 // Connect to redis server.  This is most commonly to a redis-server instance
 // running on the same host.
 
-exports.connect = function(port, host) {
+exports.connect = function(onConnect, port, host) {
   port = port || 6379;
   host = host || '127.0.0.1';
 
   node.debug('connecting to ' + host + ':' + port);
 
   conn.connect(port, host);
+  
+  conn.addListener("connect", function(){
+    conn.setEncoding("utf8");
+    onConnect();
+  });
 }
 
 var CRLF = "\r\n";
@@ -300,7 +305,7 @@ function postProcessResults(command, result) {
   return result;
 }
 
-conn.onReceive = function(data) {
+conn.addListener("receive", function(data){
   if (exports.debugMode) 
     debug('< ' + data);
 
@@ -326,7 +331,7 @@ conn.onReceive = function(data) {
       callback.cb(result);
     }
   }
-};
+});
 
 // Read this first: http://code.google.com/p/redis/wiki/SortCommand
 // options is an object which can have the following properties:
@@ -391,11 +396,7 @@ exports.quit = function() {
   conn.close();
 }
 
-conn.onConnect = function() {
-  conn.setEncoding("utf8");
-}
-
-conn.onDisconnect = function(hadError) {
+conn.addListener("close", function(hadError){
   if (hadError) 
     fatal("disconnected from redis server in error -- redis server up?");
-}
+});
