@@ -16,18 +16,14 @@ var TEST_DB_NUMBER_FOR_MOVE = 14;
 
 include("mjsunit.js");
 
-var redis = require("../redis.js");
-
 var pendingCallbacks = 0;
 
 function expectCallback() {
   pendingCallbacks++;
-  node.debug("pendingCallbacks = " + pendingCallbacks);
 }
 
 function wasCalledBack() {
   pendingCallbacks--;
-  node.debug("pendingCallbacks = " + pendingCallbacks);
 }
 
 function expectTrue() {
@@ -70,7 +66,7 @@ function expectZero() {
   return expectNumber(0);
 }
 
-function expectOne() {
+function expectOne(message) {
   return expectNumber(1);
 }
 
@@ -497,6 +493,69 @@ function test_srem() {
   redis.scard('set0', expectOne());             // just member0 again
 }
 
+function test_spop() {
+  redis.sadd('zzz', 'member0', expectOne());
+  redis.scard('zzz', expectOne());
+
+  expectCallback();  
+  redis.spop('zzz', function(value) {
+    wasCalledBack();
+
+    assertEquals(value, 'member0');
+    redis.scard('zzz', expectZero());
+  });
+}
+
+function test_sdiff() {
+  redis.sadd('bsh', 'x', expectOne());
+  redis.sadd('bsh', 'a', expectOne());
+  redis.sadd('bsh', 'b', expectOne());
+  redis.sadd('bsh', 'c', expectOne());
+  
+  redis.sadd('hah', 'c', expectOne());
+  
+  redis.sadd('hac', 'a', expectOne());
+  redis.sadd('hac', 'd', expectOne());
+  
+  expectCallback();  
+  redis.sdiff('bsh', 'hah', 'hac', function(values) {
+    wasCalledBack();
+
+    values.sort();
+
+    assertEquals(values.length, 2);
+    assertEquals(values[0], 'b');
+    assertEquals(values[1], 'x');
+  });
+}
+
+function test_sdiffstore() {
+  redis.sadd('bsh2', 'x', expectOne());  
+  redis.sadd('bsh2', 'a', expectOne());
+  redis.sadd('bsh2', 'b', expectOne());
+  redis.sadd('bsh2', 'c', expectOne());
+  
+  redis.sadd('hah2', 'c', expectOne());
+  
+  redis.sadd('hac2', 'a', expectOne());
+  redis.sadd('hac2', 'd', expectOne());
+
+  // NB: returns the number of elements in the dstkey (here crunk2)
+
+  redis.sdiffstore('crunk2', 'bsh2', 'hah2', 'hac2', expectNumber(2));
+
+  expectCallback();
+  redis.smembers('crunk2', function(members) { 
+    wasCalledBack();
+
+    members.sort();
+
+    assertEquals(members.length, 2);
+    assertEquals(members[0], 'b');
+    assertEquals(members[1], 'x');
+  });
+}
+
 function test_smembers() {
   expectCallback();
   redis.smembers('set0', function(members) { 
@@ -849,11 +908,11 @@ function test_lastsave() {
 }
 
 function test_flushall() {
-  node.debug("flushall: skipped");
+  node.stdio.writeError("flushall: skipped\n");
 }
 
 function test_shutdown() {
-  node.debug("shutdown: skipped");
+  node.stdio.writeError("shutdown: skipped\n");
 }
 
 function test_set_number() {
@@ -872,12 +931,13 @@ var tests = [
   test_llen, test_lrange, test_ltrim, test_lindex, test_lset, test_lrem,
   test_lpop, test_rpop, test_sadd, test_sismember, test_scard, test_srem,
   test_smembers, test_smove, test_sinter, test_sinterstore, test_sunion,
+  test_spop, test_sdiff, test_sdiffstore,
   test_sunionstore, test_type, test_move, test_sort, test_save, test_bgsave, 
   test_lastsave, test_flushall, test_shutdown, test_set_number
 ];
 
 function runTests() {
-  print("Running tests, which include key expirations.  Please wait roughly 7-8 seconds.\n\n");
+  node.stdio.writeError("Running tests, which include key expirations.  Please wait roughly 7-8 seconds.\n\n\n");
 
   // Clear out any previous half-baked test runs.
 
@@ -892,11 +952,11 @@ function runTests() {
   // Run each test.
 
   tests.forEach(function(test) { 
-    node.debug(test.name);
+    node.stdio.writeError('running test "' + test.name + '"\n');
     test();
   });
 
-  node.debug("\n\n\nall tests submitted... waiting for expiration tests...\n\n");
+  node.stdio.writeError("all tests submitted; waiting for expiration tests...\n");
 
   setTimeout(function() {
     // Ensure that all callbacks were in fact called back!
@@ -912,11 +972,12 @@ function runTests() {
     redis.flushdb();
 
     redis.quit();
+
+    node.stdio.writeError("done.\n");
   }, 6000);
 }
 
-function onLoad() {
-  redis.debugMode = true;
+var redis = require("../redis.js");
+// redis.debugMode = true;
+redis.connect(runTests);
 
-  redis.connect(runTests);
-}

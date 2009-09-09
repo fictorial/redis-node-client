@@ -45,12 +45,7 @@ See the tests/test.js file as a good example of this.
 
 ## Status
 
-This project is a little out of date.  I'm not personally using Node.js nor
-Redis at the moment since they are both in a pretty good state of flux.  I'll
-wait until they reach 1.0 and update this project.  Apparently callbacks are
-all sorts of fux0red since I last looked at this.
-
-* The full Redis command specification is supported as of June 17, 2009.
+* The full Redis 1.0 command specification is supported.
 * All tests pass (see above though)
 * See the TODO file for known issues.
 

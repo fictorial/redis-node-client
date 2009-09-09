@@ -23,13 +23,15 @@
 // Thanks to:
 // - Elliott Cable for Node.js 0.1.7 API changes and unit test enhancements.
 
+var DEFAULT_PORT = 6379;
+
 var conn = new node.tcp.Connection();
 
 // Connect to redis server.  This is most commonly to a redis-server instance
 // running on the same host.
 
 exports.connect = function(onConnect, port, host) {
-  port = port || 6379;
+  port = port || DEFAULT_PORT;
   host = host || '127.0.0.1';
 
   node.debug('connecting to ' + host + ':' + port);
@@ -45,25 +47,72 @@ exports.connect = function(onConnect, port, host) {
 var CRLF = "\r\n";
 var CRLF_LENGTH = 2;
 
-// Commands supported by Redis (as of June, 2009).
-// Note: 'sort' and 'quit' are handled as special cases.
+// Commands supported by Redis 1.0
+//
+// Note: 'sort', 'quit', and 'slaveof' are handled as special cases.
+//
+// Note: 'monitor' is not included as that's generally only used 
+// in a telnet connection to the redis-server instance.
 
 var inlineCommands = {
-  auth:1,        get:1,         mget:1,        incr:1,        incrby:1,
-  decr:1,        decrby:1,      exists:1,      del:1,         type:1,
-  keys:1,        randomkey:1,   rename:1,      renamenx:1,    dbsize:1,
-  expire:1,      ttl:1,         llen:1,        lrange:1,      ltrim:1,
-  lindex:1,      lpop:1,        rpop:1,        scard:1,       sinter:1,
-  sinterstore:1, sunion:1,      sunionstore:1, smembers:1,    select:1,
-  move:1,        flushdb:1,     flushall:1,    save:1,        bgsave:1,
-  lastsave:1,    shutdown:1,    info:1
+  auth:1,
+  bgsave:1,
+  dbsize:1,
+  decr:1,
+  decrby:1,
+  del:1,
+  exists:1,
+  expire:1,
+  flushall:1,
+  flushdb:1,
+  get:1,
+  incr:1,
+  incrby:1,
+  info:1,
+  keys:1,
+  lastsave:1,
+  lindex:1,
+  llen:1,
+  lpop:1,
+  lrange:1,
+  ltrim:1,
+  mget:1,
+  move:1,
+  randomkey:1,
+  rename:1,
+  renamenx:1,
+  rpop:1,
+  save:1,
+  scard:1,
+  sdiff:1,
+  sdiffstore:1,
+  select:1,
+  shutdown:1,
+  sinter:1,
+  sinterstore:1,
+  smembers:1,
+  spop:1,
+  sunion:1,
+  sunionstore:1,
+  ttl:1,
+  type:1,
 };
 
 var bulkCommands = {
-  set:1,         getset:1,      setnx:1,       rpush:1,       lpush:1,
-  lset:1,        lrem:1,        sadd:1,        srem:1,        smove:1,
-  sismember:1
+  getset:1,
+  lpush:1,
+  lrem:1,
+  lset:1,
+  rpush:1,
+  sadd:1,
+  set:1,
+  setnx:1,
+  sismember:1,
+  smove:1,
+  srem:1,
 };
+
+// missing: sdiff, sdiffstore
 
 // callbacks:
 // Node is event driven / asynchronous with respect to all I/O.  Thus, we call
@@ -399,7 +448,40 @@ exports.quit = function() {
   conn.close();
 }
 
+// Make the current redis instance we're connected to a master
+// in a master-slave replication configuration.
+
+exports.makeMaster = function() {
+  if (conn.readyState != "open")
+    fatal("connection is not open");
+
+  debug('> slaveof no one');  // I am SPARTACUS!
+
+  conn.send('slaveof no one');
+
+  callbacks.push({ cb:null, cmd:'slaveof' });
+}
+
+// Make the current redis instance we're connected to a slave
+// in a master-slave replication configuration.
+
+exports.makeSlaveOf = function(host, port) {
+  if (conn.readyState != "open")
+    fatal("connection is not open");
+
+  port = port || DEFAULT_PORT;
+
+  var cmd = 'slaveof ' + host + ' ' + port;
+
+  debug('> ' + cmd);
+
+  conn.send(cmd);
+
+  callbacks.push({ cb:null, cmd:'slaveof' });
+}
+
 conn.addListener("close", function(hadError){
   if (hadError) 
     fatal("disconnected from redis server in error -- redis server up?");
 });
+

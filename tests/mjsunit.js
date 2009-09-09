@@ -53,9 +53,14 @@ function fail (expected, found, name_opt) {
   } else {
     start = "Fail" + "ure:";
   }
-  throw new MjsUnitAssertionError(start + " expected <" + expected + "> found <" + found + ">");
-};
 
+  // This does not always print a stack trace for me (at least on OS X).
+  // Perhaps there's some race condition in node?
+
+  var err = new MjsUnitAssertionError(start + " expected <" + expected + "> found <" + found + ">");
+  Error.captureStackTrace(err);
+  throw err;
+};
 
 function deepEquals (a, b) {
   if (a == b) {
