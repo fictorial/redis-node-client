@@ -112,8 +112,6 @@ var bulkCommands = {
   srem:1,
 };
 
-// missing: sdiff, sdiffstore
-
 // callbacks:
 // Node is event driven / asynchronous with respect to all I/O.  Thus, we call
 // user code back when we parse Redis responses.  Note: redis responds in the
