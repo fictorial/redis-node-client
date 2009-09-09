@@ -4,25 +4,12 @@ A Redis client implementation for Node which runs atop Google V8.
 
 This project lets you access a Redis instance using server-side JavaScript.
 
-## Uses
-
-The following projects form a web services implementation platform that is
-highly scalable, and is very easy to design for, develop for, and deploy.
-
-* Google V8 ECMAScript interpreter
-* Node
-* node-json-rpc
-* Redis
-* redis-node-client
-
-Google V8 can be found on Google Code.  The other projects are available on
-GitHub.
-
 ## Asynchronicity
 
-Node performs all I/O using libev and is thus asynchronous.  This means that
-while a typical Redis client might have code that accesses a Redis server in a
-blocking call, Node-based code cannot.
+Node does not block, period.
+
+This means that while a typical Redis client might have code that accesses a
+Redis server in a blocking call, Node-based code cannot.
 
 Typical Redis client (e.g. Python):
 
@@ -46,7 +33,7 @@ See the tests/test.js file as a good example of this.
 ## Status
 
 * The full Redis 1.0 command specification is supported.
-* All tests pass (see above though)
+* All tests pass.
 * See the TODO file for known issues.
 
 ## Author
