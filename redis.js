@@ -18,7 +18,10 @@
 // To learn more about Node and Google V8, see http://tinyclouds.org/node/ and
 // http://code.google.com/p/v8/ respectively.
 //
-// Brian Hammond, Fictorial, June 2009
+// Brian Hammond, Fictorial
+//
+// Thanks to:
+// - Elliott Cable for Node.js 0.1.7 API changes and unit test enhancements.
 
 var conn = new node.tcp.Connection();
 

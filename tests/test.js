@@ -11,47 +11,58 @@
 // see the entire test suite's commands pipelined to redis before any reply is
 // processed!
 
-var TEST_DB_NUMBER = 15;
+var TEST_DB_NUMBER          = 15;
 var TEST_DB_NUMBER_FOR_MOVE = 14;
 
 include("mjsunit.js");
 
 var redis = require("../redis.js");
 
-unexecuted_callbacks = 0;
-unexecuted_callbacks++;
-unexecuted_callbacks--;
+var pendingCallbacks = 0;
+
+function expectCallback() {
+  pendingCallbacks++;
+  node.debug("pendingCallbacks = " + pendingCallbacks);
+}
+
+function wasCalledBack() {
+  pendingCallbacks--;
+  node.debug("pendingCallbacks = " + pendingCallbacks);
+}
 
 function expectTrue() {
   // Redis' protocol returns +OK for some operations.
   // The client converts this into a ECMAScript boolean type with value true.
   
-  unexecuted_callbacks++;
+  expectCallback();
+
   return function(reply){
     assertEquals(typeof(reply), 'boolean');
     assertTrue(reply);
-    
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   };
 }
 
 function expectFalse() {
-  unexecuted_callbacks++;
+  expectCallback();
+
   return function(reply){
     assertEquals(typeof(reply), 'boolean');
     assertFalse(reply);
-    
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   };
 }
 
 function expectNumber(expectedValue) {
-  unexecuted_callbacks++;
+  expectCallback();
+
   return function(reply){
     assertEquals(typeof(reply), 'number');
     assertEquals(expectedValue, reply);
     
-    unexecuted_callbacks--;
+    wasCalledBack();
   };
 }
 
@@ -96,29 +107,45 @@ function test_setnx() {
 }
 
 function test_get() {
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
-  redis.get('foo', function(value) { assertEquals(value, 'bar');   unexecuted_callbacks-- });
-  redis.get('boo', function(value) { assertEquals(value, 'apple'); unexecuted_callbacks-- });
+  expectCallback();
+  redis.get('foo', function(value) { 
+    assertEquals(value, 'bar');
+
+    wasCalledBack(); 
+  });
+
+  expectCallback();
+  redis.get('boo', function(value) { 
+    assertEquals(value, 'apple'); 
+
+    wasCalledBack();
+  });
 }
 
 function test_mget() {
+  expectCallback();
+
   redis.mget('foo', 'boo', function(values) { 
     assertEquals('bar', values[0]);
     assertEquals('apple', values[1]);
+
+    wasCalledBack();
   });
 }
 
 function test_getset() {
-  unexecuted_callbacks++;
+  expectCallback();
+
   redis.getset('foo', 'fuzz', function(prevValue) {
     assertEquals('bar', prevValue);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_info() {
-  unexecuted_callbacks++;
+  expectCallback();
+
   redis.info(function(info) {
     // The INFO command is special; its output is parsed into an object.
 
@@ -134,7 +161,8 @@ function test_info() {
 
     assertEquals(typeof(info.uptime_in_seconds), 'number');
     assertEquals(typeof(info.connected_clients), 'number');
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
@@ -172,36 +200,40 @@ function test_del() {
 function test_keys() {
   redis.set('foo2', 'some value', expectTrue());
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.keys('foo*', function(keys) {
     assertEquals(keys.length, 2);
     assertEquals(['foo','foo2'], keys.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   // At this point we have foo, baz, boo, and foo2.
-  unexecuted_callbacks++;
+  expectCallback();
   redis.keys('*', function(keys) {
     assertEquals(keys.length, 4);
     assertEquals(['baz','boo','foo','foo2'], keys.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   // foo and boo
-  unexecuted_callbacks++;
+  expectCallback();
   redis.keys('?oo', function(keys) {
     assertEquals(keys.length, 2);
     assertEquals(['boo','foo'], keys.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_randomkey() {
   // At this point we have foo, baz, boo, and foo2.
-  unexecuted_callbacks++;
+  expectCallback();
   redis.randomkey(function(someKey) {
     assertTrue(/^(foo|foo2|boo|baz)$/.test(someKey));
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
@@ -222,8 +254,12 @@ function test_renamenx() {
 }
 
 function test_dbsize() {
-  unexecuted_callbacks++;
-  redis.dbsize(function(value) { assertEquals(4, value); unexecuted_callbacks-- });
+  expectCallback();
+  redis.dbsize(function(value) { 
+    assertEquals(4, value); 
+
+    wasCalledBack();
+  });
 }
 
 function test_expire() {
@@ -238,13 +274,21 @@ function test_expire() {
 }
 
 function test_ttl() {
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
   // foo is not set to expire
-  redis.ttl('foo', function(value) { assertEquals(-1, value); unexecuted_callbacks-- });
+  expectCallback();
+  redis.ttl('foo', function(value) { 
+    assertEquals(-1, value); 
+
+    wasCalledBack(); 
+  });
 
   // 'too' *is* set to expire
-  redis.ttl('too', function(value) { assertTrue(value > 0); unexecuted_callbacks-- });
+  expectCallback();
+  redis.ttl('too', function(value) { 
+    assertTrue(value > 0);
+
+    wasCalledBack();
+  });
 }
 
 function test_rpush() {
@@ -262,72 +306,106 @@ function test_lpush() {
 function test_llen() {
   redis.llen('list0', expectOne());
   redis.rpush('list0', 'list0value1', expectTrue());
-  unexecuted_callbacks++;
-  redis.llen('list0', function(len) { assertEquals(2, len); unexecuted_callbacks-- });
+
+  expectCallback();
+  redis.llen('list0', function(len) { 
+    assertEquals(2, len);
+
+    wasCalledBack();
+  });
 }
 
 function test_lrange() {
-  unexecuted_callbacks++;
+  expectCallback();
   redis.lrange('list0', 0, -1, function(values) {
     assertEquals(2, values.length);
     assertEquals('list0value0', values[0]);
     assertEquals('list0value1', values[1]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.lrange('list0', 0, 0, function(values) {
     assertEquals(1, values.length);
     assertEquals('list0value0', values[0]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.lrange('list0', -1, -1, function(values) {
     assertEquals(1, values.length);
     assertEquals('list0value1', values[0]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_ltrim() {
   // trim list so it just contains the first 2 elements
 
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
   redis.rpush('list0', 'list0value2', expectTrue());
-  redis.llen('list0', function(len) { assertEquals(3, len); unexecuted_callbacks-- });
-  redis.ltrim('list0', 0, 1, expectTrue());
-  redis.llen('list0', function(len) { assertEquals(2, len); unexecuted_callbacks-- });
 
-  unexecuted_callbacks++;
+  expectCallback();
+  redis.llen('list0', function(len) { 
+    assertEquals(3, len);
+
+    wasCalledBack();
+  });
+
+  redis.ltrim('list0', 0, 1, expectTrue());
+
+  expectCallback();
+  redis.llen('list0', function(len) { 
+    assertEquals(2, len);
+
+    wasCalledBack();
+  });
+
+  expectCallback();
   redis.lrange('list0', 0, -1, function(values) {
     assertEquals(2, values.length);
     assertEquals('list0value0', values[0]);
     assertEquals('list0value1', values[1]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_lindex() {
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
-  redis.lindex('list0', 0, function(value) { assertEquals('list0value0', value); unexecuted_callbacks-- });
-  redis.lindex('list0', 1, function(value) { assertEquals('list0value1', value); unexecuted_callbacks-- });
+  expectCallback();
+  redis.lindex('list0', 0, function(value) { 
+    assertEquals('list0value0', value);
 
-  unexecuted_callbacks++;
+    wasCalledBack();
+  });
+
+  expectCallback();
+  redis.lindex('list0', 1, function(value) { 
+    assertEquals('list0value1', value);
+
+    wasCalledBack();
+  });
+
   // out of range => null 
-  redis.lindex('list0', 2, function(value) { assertEquals(null, value); unexecuted_callbacks-- });
+  expectCallback();
+  redis.lindex('list0', 2, function(value) { 
+    assertEquals(null, value);
+
+    wasCalledBack();
+  });
 }
 
 function test_lset() {
   redis.lset('list0', 0, 'LIST0VALUE0', expectTrue());  
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.lrange('list0', 0, 0, function(values) {
     assertEquals(1, values.length);
     assertEquals('LIST0VALUE0', values[0]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   // FYI list0 is [ LIST0VALUE0, list0value1 ] at this point
@@ -345,24 +423,47 @@ function test_lrem() {
 
 function test_lpop() {
   // FYI list0 is [ DEF, ABC, LIST0VALUE0, list0value1 ] at this point
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
-  redis.lpop('list0', function(value) { assertEquals('DEF', value); unexecuted_callbacks-- });
-  redis.lpop('list0', function(value) { assertEquals('ABC', value); unexecuted_callbacks-- });
+
+  expectCallback();
+  redis.lpop('list0', function(value) { 
+    assertEquals('DEF', value);
+
+    wasCalledBack();
+  });
+
+  expectCallback();
+  redis.lpop('list0', function(value) { 
+    assertEquals('ABC', value);
+
+    wasCalledBack();
+  });
 }
 
 function test_rpop() {
   // FYI list0 is [ LIST0VALUE0, list0value1 ] at this point
   
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
-  redis.rpop('list0', function(value) { assertEquals('list0value1', value); unexecuted_callbacks-- });
-  redis.rpop('list0', function(value) { assertEquals('LIST0VALUE0', value); unexecuted_callbacks-- });
+  expectCallback();
+  redis.rpop('list0', function(value) { 
+    assertEquals('list0value1', value);
+
+    wasCalledBack();
+  });
+
+  expectCallback();
+  redis.rpop('list0', function(value) { 
+    assertEquals('LIST0VALUE0', value);
+
+    wasCalledBack();
+  });
 
   // list0 is now empty
 
-  unexecuted_callbacks++;
-  redis.llen('list0', function(len) { assertEquals(0, len); unexecuted_callbacks-- });
+  expectCallback();
+  redis.llen('list0', function(len) { 
+    assertEquals(0, len);
+
+    wasCalledBack();
+  });
 }
 
 function test_sadd() {
@@ -381,8 +482,13 @@ function test_sismember() {
 function test_scard() {
   redis.scard('set0', expectOne()); 
   redis.sadd('set0', 'member1', expectOne());
-  unexecuted_callbacks++;  
-  redis.scard('set0', function(cardinality) { assertEquals(2, cardinality); unexecuted_callbacks-- }); 
+
+  expectCallback();  
+  redis.scard('set0', function(cardinality) { 
+    assertEquals(2, cardinality);
+
+    wasCalledBack();
+  }); 
 }
 
 function test_srem() {
@@ -392,28 +498,31 @@ function test_srem() {
 }
 
 function test_smembers() {
-  unexecuted_callbacks++;
+  expectCallback();
   redis.smembers('set0', function(members) { 
     assertEquals(1, members.length);
     assertEquals('member0', members[0]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   redis.sadd('set0', 'member1', expectOne());  
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.smembers('set0', function(members) { 
     assertEquals(2, members.length);
     assertEquals(['member0','member1'], members.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   // doesn't exist => null
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.smembers('set1', function(members) { 
     assertEquals(null, members);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
@@ -439,77 +548,107 @@ function test_sinter() {
   redis.sadd('sc', 'd', expectOne());
   redis.sadd('sc', 'e', expectOne());
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sinter('sa', 'sb', function(intersection) {
     assertEquals(2, intersection.length);
     assertEquals(['b','c'], intersection.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sinter('sb', 'sc', function(intersection) {
     assertEquals(2, intersection.length);
     assertEquals(['c','d'], intersection.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sinter('sa', 'sc', function(intersection) {
     assertEquals(1, intersection.length);
     assertEquals('c', intersection[0]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   // 3-way
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sinter('sa', 'sb', 'sc', function(intersection) {
     assertEquals(1, intersection.length);
     assertEquals('c', intersection[0]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_sinterstore() {
   redis.sinterstore('inter-dst', 'sa', 'sb', 'sc', expectOne());
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.smembers('inter-dst', function(members) { 
     assertEquals(1, members.length);
     assertEquals('c', members[0]);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_sunion() {
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sunion('sa', 'sb', 'sc', function(union) {
     assertEquals(['a','b','c','d','e'], union.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_sunionstore() {
-  unexecuted_callbacks++;
-  redis.sunionstore('union-dst', 'sa', 'sb', 'sc', function(cardinality) { assertEquals(5, cardinality); unexecuted_callbacks-- });
+  expectCallback();
+  redis.sunionstore('union-dst', 'sa', 'sb', 'sc', function(cardinality) { 
+    assertEquals(5, cardinality);
 
-  unexecuted_callbacks++;
+    wasCalledBack();
+  });
+
+  expectCallback();
   redis.smembers('union-dst', function(members) { 
     assertEquals(5, members.length);
     assertEquals(['a','b','c','d','e'], members.sort());
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
 function test_type() {
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
-  unexecuted_callbacks++;
-  redis.type('union-dst', function(type) { assertEquals('set', type); unexecuted_callbacks-- });
-  redis.type('list0',     function(type) { assertEquals('list', type); unexecuted_callbacks-- });
-  redis.type('foo',       function(type) { assertEquals('string', type); unexecuted_callbacks-- });
-  redis.type('xxx',       function(type) { assertEquals('none', type); unexecuted_callbacks-- });
+  expectCallback();
+  redis.type('union-dst', function(type) { 
+    assertEquals('set', type);
+
+    wasCalledBack();
+  });
+
+  expectCallback();
+  redis.type('list0', function(type) { 
+    assertEquals('list', type);
+
+    wasCalledBack();
+  });
+
+  expectCallback();
+  redis.type('foo', function(type) { 
+    assertEquals('string', type);
+
+    wasCalledBack();
+  });
+
+  expectCallback();
+  redis.type('xxx', function(type) { 
+    assertEquals('none', type);
+
+    wasCalledBack();
+  });
 }
 
 function test_move() {
@@ -624,58 +763,69 @@ function test_sort() {
   // sort y ascending = [ a b c d ]
   // sort y descending = [ d c b a ]
 
-  unexecuted_callbacks++;
-  redis.sort('y', { lexicographically:true, ascending:true }, function(sorted) {
-    assertEquals(['a','b','c','d'], sorted);
-    unexecuted_callbacks--;
-  });
+  expectCallback();
+  redis.sort('y', { lexicographically:true, ascending:true }, 
+    function(sorted) {
+      assertEquals(['a','b','c','d'], sorted);
 
-  unexecuted_callbacks++;
-  redis.sort('y', { lexicographically:true, ascending:false }, function(sorted) {
-    assertEquals(['d','c','b','a'], sorted);
-    unexecuted_callbacks--;
-  });
+      wasCalledBack();
+    }
+  );
+
+  expectCallback();
+  redis.sort('y', { lexicographically:true, ascending:false }, 
+    function(sorted) {
+      assertEquals(['d','c','b','a'], sorted);
+
+      wasCalledBack();
+    }
+  );
 
   // Now try sorting numbers in a list.
   // x = [ 3, 9, 2, 4 ]
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sort('x', { ascending:true }, function(sorted) {
     assertEquals([2,3,4,9], sorted);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sort('x', { ascending:false }, function(sorted) {
     assertEquals([9,4,3,2], sorted);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   // Try sorting with a 'by' pattern.
   
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sort('x', { ascending:true, byPattern:'w_*' }, function(sorted) {
     assertEquals([3,9,4,2], sorted);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 
   // Try sorting with a 'by' pattern and 1 'get' pattern.
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sort('x', { ascending:true, byPattern:'w_*', getPatterns:['o_*'] }, 
     function(sorted) {
       assertEquals(['foo','bar','baz','buz'], sorted);
-      unexecuted_callbacks--;
+
+      wasCalledBack();
     }
   );
 
   // Try sorting with a 'by' pattern and 2 'get' patterns.
 
-  unexecuted_callbacks++;
+  expectCallback();
   redis.sort('x', { ascending:true, byPattern:'w_*', getPatterns:['o_*', 'p_*'] }, 
     function(sorted) {
       assertEquals(['foo','bux','bar','tux','baz','lux','buz','qux'], sorted);
-      unexecuted_callbacks--;
+
+      wasCalledBack();
     }
   );
 }
@@ -689,11 +839,12 @@ function test_bgsave() {
 }
 
 function test_lastsave() {
-  unexecuted_callbacks++;
+  expectCallback();
   redis.lastsave(function(value) { 
     assertEquals(typeof(value), 'number');
     assertTrue(value > 0);
-    unexecuted_callbacks--;
+
+    wasCalledBack();
   });
 }
 
@@ -748,8 +899,9 @@ function runTests() {
   node.debug("\n\n\nall tests submitted... waiting for expiration tests...\n\n");
 
   setTimeout(function() {
-    // Ensure that all callbacks where executed
-    assertEquals(0, unexecuted_callbacks);
+    // Ensure that all callbacks were in fact called back!
+
+    assertEquals(0, pendingCallbacks);
     
     // Clean out the test databases.
 
