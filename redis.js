@@ -124,7 +124,7 @@ var bulkCommands = {
 
 var callbacks = [];
 
-exports.debugMode = true;
+exports.debugMode = false;
 
 function writeDebugMessage(data) {
   if (!exports.debugMode || !data)
