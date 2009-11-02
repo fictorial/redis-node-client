@@ -10,5 +10,3 @@
   - SRANDMEMBER
   - MSET
   - MSETNX
-
-- handle reconnecting sockets gracefully (if possible)

@@ -19,33 +19,78 @@
 // http://code.google.com/p/v8/ respectively.
 //
 // Brian Hammond, Fictorial
-//
-// Thanks to:
-// - Elliott Cable for Node.js 0.1.7 API changes and unit test enhancements.
-
-var DEFAULT_PORT = 6379;
 
 var sys = require("sys");
 var tcp = require("tcp");
 
-var conn = new process.tcp.Connection();
+var DEFAULT_PORT = 6379;
+var DEFAULT_HOST = '127.0.0.1';
+
+var conn, host, port;
 
 // Connect to redis server.  This is most commonly to a redis-server instance
 // running on the same host.
 
-exports.connect = function(onConnect, port, host) {
-  port = port || DEFAULT_PORT;
-  host = host || '127.0.0.1';
+exports.connect = function(userOnConnectCallback, thePort, theHost) {
+  port = thePort || DEFAULT_PORT;
+  host = theHost || DEFAULT_HOST;
 
-  writeDebugMessage('connecting to ' + host + ':' + port);
+  writeDebugMessage('connecting to Redis instance on ' + host + ':' + port + "...");
 
-  conn.connect(port, host);
-  
-  conn.addListener("connect", function(){
-    conn.setEncoding("utf8");
-    if (typeof(onConnect) == "function")
-      onConnect();
-  });
+  withConnection(userOnConnectCallback);
+}
+
+function withConnection(callback) {
+  if (!conn || conn.readyState != "open") {
+    conn = new process.tcp.Connection();
+
+    conn.addListener("connect", function(){
+      writeDebugMessage("connected.");
+      
+      conn.setEncoding("utf8");
+
+      if (typeof(callback) == "function")
+        callback();
+    }); 
+
+    conn.addListener("receive", function(data){
+      if (exports.writeDebugMessageMode) 
+        writeDebugMessage('< ' + data);
+
+      if (data.length == 0) 
+        fatal("empty response");
+
+      var offset = 0;
+
+      while (offset < data.length) {
+        var replyPrefix = data.charAt(offset);
+        var replyHandler = replyPrefixToHandler[replyPrefix];
+
+        if (!replyHandler) 
+          fatal("unknown prefix " + replyPrefix + " in reply @ offset " + offset);
+
+        var resultInfo = replyHandler(data, offset);
+        var result = resultInfo[0];
+        offset = resultInfo[1];
+
+        var callback = callbacks.shift();
+        if (callback && callback.cb) {
+          result = postProcessResults(callback.cmd, result);
+          callback.cb(result);
+        }
+      }
+    });
+
+    conn.addListener("close", function(hadError){
+      if (hadError) 
+        fatal("disconnected from redis server in error -- redis server up?");
+    });
+
+    conn.connect(port, host);
+
+  } else if (conn.readyState == "open" && typeof(callback) == "function") {
+    callback();
+  }
 }
 
 var CRLF = "\r\n";
@@ -130,11 +175,11 @@ function writeDebugMessage(data) {
   if (!exports.debugMode || !data)
     return;
 
-  sys.debug(data.replace(/\r\n/g, '\\r\\n'));
+  sys.debug(data.replace(/\r/g, '<CR>').replace(/\n/g, '<LF>'));
 }
 
 function fatal(errorMessage) {
-  writeDebugMessage("\n\nFATAL: " + errorMessage + "\n");
+  writeDebugMessage("FATAL: " + errorMessage);
   throw errorMessage;
 }
 
@@ -176,8 +221,8 @@ function formatBulk(commandName, commandArgs, argCount) {
     args += ' ' + val;
   }
 
-  writeDebugMessage("formatBulk " + commandName + 
-    "; args=" + sys.inspect(commandArgs) + "; count=" + argCount);
+  // writeDebugMessage("formatBulk command=" + sys.inspect(commandName) + 
+  //   "; args=" + sys.inspect(commandArgs) + "; count=" + argCount);
 
   var lastArg = typeof(commandArgs[argCount - 1]) != 'string' 
     ? commandArgs[argCount - 1].toString() 
@@ -192,38 +237,39 @@ function formatBulk(commandName, commandArgs, argCount) {
 
 function createCommandSender(commandName) {
   return function() {
-    if (conn.readyState != "open") 
-      fatal("connection is not open");
+    var args = arguments;
 
-    // last arg (if any) should be callback function.
+    withConnection(function() {
+      // last arg (if any) should be callback function.
 
-    var callback = null;
-    var numArgs = arguments.length;
+      var callback = null;
+      var numArgs = args.length;
 
-    if (typeof(arguments[arguments.length - 1]) == 'function') {
-      callback = arguments[arguments.length - 1];
-      numArgs = arguments.length - 1;
-    }
+      if (typeof(args[args.length - 1]) == 'function') {
+        callback = args[args.length - 1];
+        numArgs = args.length - 1;
+      }
 
-    // Format the command and send it.
+      // Format the command and send it.
 
-    var cmd;
+      var cmd;
 
-    if (inlineCommands[commandName]) {
-      cmd = formatInline(commandName, arguments, numArgs);
-    } else if (bulkCommands[commandName]) {
-      cmd = formatBulk(commandName, arguments, numArgs);
-    } else { 
-      fatal('unknown command ' + commandName);
-    }
+      if (inlineCommands[commandName]) {
+        cmd = formatInline(commandName, args, numArgs);
+      } else if (bulkCommands[commandName]) {
+        cmd = formatBulk(commandName, args, numArgs);
+      } else { 
+        fatal('unknown command ' + commandName);
+      }
       
-    writeDebugMessage('> ' + cmd);
+      writeDebugMessage('> ' + cmd);
 
-    // Always push something, even if its null.
-    // We need received replies to match number of entries in `callbacks`.
+      // Always push something, even if its null.
+      // We need received replies to match number of entries in `callbacks`.
 
-    callbacks.push({ cb:callback, cmd:commandName.toLowerCase() });
-    conn.send(cmd);
+      callbacks.push({ cb:callback, cmd:commandName.toLowerCase() });
+      conn.send(cmd);
+    });
   };
 }
 
@@ -354,34 +400,6 @@ function postProcessResults(command, result) {
   return result;
 }
 
-conn.addListener("receive", function(data){
-  if (exports.writeDebugMessageMode) 
-    writeDebugMessage('< ' + data);
-
-  if (data.length == 0) 
-    fatal("empty response");
-
-  var offset = 0;
-
-  while (offset < data.length) {
-    var replyPrefix = data.charAt(offset);
-    var replyHandler = replyPrefixToHandler[replyPrefix];
-
-    if (!replyHandler) 
-      fatal("unknown prefix " + replyPrefix + " in reply @ offset " + offset);
-
-    var resultInfo = replyHandler(data, offset);
-    var result = resultInfo[0];
-    offset = resultInfo[1];
-
-    var callback = callbacks.shift();
-    if (callback && callback.cb) {
-      result = postProcessResults(callback.cmd, result);
-      callback.cb(result);
-    }
-  }
-});
-
 // Read this first: http://code.google.com/p/redis/wiki/SortCommand
 // options is an object which can have the following properties:
 //   'byPattern': 'pattern'
@@ -391,53 +409,54 @@ conn.addListener("receive", function(data){
 //   'lexicographically': true|false
 
 exports.sort = function(key, options, callback) {
-  if (conn.readyState != "open")
-    fatal("connection is not open");
+  withConnection(function() {
+    var cmd = 'sort ' + key;
 
-  var cmd = 'sort ' + key;
+    if (typeof(options) == 'object') {
+      var optBy = options.byPattern ? ('by ' + options.byPattern) : '';
 
-  if (typeof(options) == 'object') {
-    var optBy = options.byPattern ? ('by ' + options.byPattern) : '';
+      var optGet = '';
+      if (options.getPatterns) {
+        options.getPatterns.forEach(function(pat) {
+          optGet += 'get ' + pat + ' ';
+        });
+      }
 
-    var optGet = '';
-    if (options.getPatterns) {
-      options.getPatterns.forEach(function(pat) {
-        optGet += 'get ' + pat + ' ';
-      });
+      var optAsc   = options.ascending         ? ''      : 'desc';
+      var optAlpha = options.lexicographically ? 'alpha' : '';
+
+      var optLimit = options.limit 
+        ? 'limit ' + options.limit[0] + ' ' + options.limit[1] 
+        : '';
+
+      cmd += ' ' + optBy    + ' ' +
+                  optLimit + ' ' +
+                  optGet   + ' ' +
+                  optAsc   + ' ' + 
+                  optAlpha + ' ' + CRLF;
+
+      cmd = cmd.replace(/\s+$/, '') + CRLF;
     }
+    
+    if (exports.writeDebugMessageMode) 
+      writeDebugMessage('> ' + cmd);
 
-    var optAsc   = options.ascending         ? ''      : 'desc';
-    var optAlpha = options.lexicographically ? 'alpha' : '';
+    conn.send(cmd);
 
-    var optLimit = options.limit 
-      ? 'limit ' + options.limit[0] + ' ' + options.limit[1] 
-      : '';
+    // Always push something, even if its null.
+    // We need received replies to match number of entries in `callbacks`.
 
-    cmd += ' ' + optBy    + ' ' +
-                 optLimit + ' ' +
-                 optGet   + ' ' +
-                 optAsc   + ' ' + 
-                 optAlpha + ' ' + CRLF;
-
-    cmd = cmd.replace(/\s+$/, '') + CRLF;
-  }
-  
-  if (exports.writeDebugMessageMode) 
-    writeDebugMessage('> ' + cmd);
-
-  conn.send(cmd);
-
-  // Always push something, even if its null.
-  // We need received replies to match number of entries in `callbacks`.
-
-  callbacks.push({ cb:callback, cmd:'sort' });
+    callbacks.push({ cb:callback, cmd:'sort' });
+  });
 }
 
 // Close the connection.
 
 exports.quit = function() {
-  if (conn.readyState != "open")
-    fatal("connection is not open");
+  if (conn.readyState != "open") {
+    conn.close();
+    return;
+  }
 
   writeDebugMessage('> quit');
 
@@ -449,36 +468,28 @@ exports.quit = function() {
 // in a master-slave replication configuration.
 
 exports.makeMaster = function() {
-  if (conn.readyState != "open")
-    fatal("connection is not open");
+  withConnection(function() {
+    writeDebugMessage('> slaveof no one');  // I am SPARTACUS!
 
-  writeDebugMessage('> slaveof no one');  // I am SPARTACUS!
+    conn.send('slaveof no one');
 
-  conn.send('slaveof no one');
-
-  callbacks.push({ cb:null, cmd:'slaveof' });
+    callbacks.push({ cb:null, cmd:'slaveof' });
+  });
 }
 
 // Make the current redis instance we're connected to a slave
 // in a master-slave replication configuration.
 
 exports.makeSlaveOf = function(host, port) {
-  if (conn.readyState != "open")
-    fatal("connection is not open");
+  withConnection(function() {
+    port = port || DEFAULT_PORT;
 
-  port = port || DEFAULT_PORT;
+    var cmd = 'slaveof ' + host + ' ' + port;
 
-  var cmd = 'slaveof ' + host + ' ' + port;
+    writeDebugMessage('> ' + cmd);
 
-  writeDebugMessage('> ' + cmd);
+    conn.send(cmd);
 
-  conn.send(cmd);
-
-  callbacks.push({ cb:null, cmd:'slaveof' });
+    callbacks.push({ cb:null, cmd:'slaveof' });
+  });
 }
-
-conn.addListener("close", function(hadError){
-  if (hadError) 
-    fatal("disconnected from redis server in error -- redis server up?");
-});
-

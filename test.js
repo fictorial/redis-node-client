@@ -14,7 +14,8 @@
 var TEST_DB_NUMBER          = 15;
 var TEST_DB_NUMBER_FOR_MOVE = 14;
 
-var test = require("mjsunit");
+var sys   = require("sys");
+var test  = require("mjsunit");
 var redis = require("./redis");
 
 var pendingCallbacks = 0;
@@ -909,11 +910,11 @@ function test_lastsave() {
 }
 
 function test_flushall() {
-  process.stdio.writeError("flushall: skipped\n");
+  sys.debug("flushall: skipped");
 }
 
 function test_shutdown() {
-  process.stdio.writeError("shutdown: skipped\n");
+  sys.debug("shutdown: skipped");
 }
 
 function test_set_number() {
@@ -938,8 +939,6 @@ var tests = [
 ];
 
 function runTests() {
-  process.stdio.writeError("Running tests, which include key expirations.  Please wait roughly 7-8 seconds.\n\n\n");
-
   // Clear out any previous half-baked test runs.
 
   redis.select(TEST_DB_NUMBER);
@@ -953,11 +952,11 @@ function runTests() {
   // Run each test.
 
   tests.forEach(function(test) { 
-    process.stdio.writeError('running test "' + test.name + '"\n');
+    sys.debug('running test: ' + sys.inspect(test.name));
     test();
   });
 
-  process.stdio.writeError("all tests submitted; waiting for expiration tests...\n");
+  sys.debug("... waiting for expiration tests to finish.");
 
   setTimeout(function() {
     // Ensure that all callbacks were in fact called back!
@@ -974,10 +973,10 @@ function runTests() {
 
     redis.quit();
 
-    process.stdio.writeError("done.\n");
+    sys.debug("done.");
   }, 6000);
 }
 
-// redis.debugMode = true;
+redis.debugMode = true;
 redis.connect(runTests);
 
