@@ -25,7 +25,10 @@
 
 var DEFAULT_PORT = 6379;
 
-var conn = new node.tcp.Connection();
+var sys  = require("sys");
+var tcp  = require("/tcp");
+
+var conn = new process.tcp.Connection();
 
 // Connect to redis server.  This is most commonly to a redis-server instance
 // running on the same host.
@@ -34,7 +37,7 @@ exports.connect = function(onConnect, port, host) {
   port = port || DEFAULT_PORT;
   host = host || '127.0.0.1';
 
-  node.debug('connecting to ' + host + ':' + port);
+  writeDebugMessage('connecting to ' + host + ':' + port);
 
   conn.connect(port, host);
   
@@ -120,25 +123,17 @@ var bulkCommands = {
 
 var callbacks = [];
 
-// debugMode:
-// We don't use print() or puts() immediately as they are asynchronous in Node;
-// the instant there's a runtime error raised by V8, any pending I/O in Node is
-// dropped.  Thus, we simply append to a string.  When *we* cause a runtime
-// error via throw in debugMode, we dump all output, *then* throw.  This is
-// useful for, well, debugging.  Otherwise, turn off debugMode (which is the
-// default).
+exports.debugMode = true;
 
-exports.debugMode = false;
-
-function debug(data) {
+function writeDebugMessage(data) {
   if (!exports.debugMode || !data)
     return;
 
-  node.debug(data.replace(/\r\n/g, '\\r\\n'));
+  sys.debug(data.replace(/\r\n/g, '\\r\\n'));
 }
 
 function fatal(errorMessage) {
-  debug("\n\nFATAL: " + errorMessage + "\n");
+  writeDebugMessage("\n\nFATAL: " + errorMessage + "\n");
   throw errorMessage;
 }
 
@@ -218,7 +213,7 @@ function createCommandSender(commandName) {
       fatal('unknown command ' + commandName);
     }
       
-    debug('> ' + cmd);
+    writeDebugMessage('> ' + cmd);
 
     // Always push something, even if its null.
     // We need received replies to match number of entries in `callbacks`.
@@ -356,8 +351,8 @@ function postProcessResults(command, result) {
 }
 
 conn.addListener("receive", function(data){
-  if (exports.debugMode) 
-    debug('< ' + data);
+  if (exports.writeDebugMessageMode) 
+    writeDebugMessage('< ' + data);
 
   if (data.length == 0) 
     fatal("empty response");
@@ -423,8 +418,8 @@ exports.sort = function(key, options, callback) {
     cmd = cmd.replace(/\s+$/, '') + CRLF;
   }
   
-  if (exports.debugMode) 
-    debug('> ' + cmd);
+  if (exports.writeDebugMessageMode) 
+    writeDebugMessage('> ' + cmd);
 
   conn.send(cmd);
 
@@ -440,7 +435,7 @@ exports.quit = function() {
   if (conn.readyState != "open")
     fatal("connection is not open");
 
-  debug('> quit');
+  writeDebugMessage('> quit');
 
   conn.send('quit' + CRLF);
   conn.close();
@@ -453,7 +448,7 @@ exports.makeMaster = function() {
   if (conn.readyState != "open")
     fatal("connection is not open");
 
-  debug('> slaveof no one');  // I am SPARTACUS!
+  writeDebugMessage('> slaveof no one');  // I am SPARTACUS!
 
   conn.send('slaveof no one');
 
@@ -471,7 +466,7 @@ exports.makeSlaveOf = function(host, port) {
 
   var cmd = 'slaveof ' + host + ' ' + port;
 
-  debug('> ' + cmd);
+  writeDebugMessage('> ' + cmd);
 
   conn.send(cmd);
 

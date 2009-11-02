@@ -1,1 +1,14 @@
+- Bring up to date with respect to redis HEAD
+  - SORT with STORE option (should already work)
+  - ZADD
+  - ZREM
+  - ZRANGE
+  - ZREVRANGE
+  - ZRANGEBYSCORE
+  - ZCARD 
+  - ZSCORE
+  - SRANDMEMBER
+  - MSET
+  - MSETNX
+
 - handle reconnecting sockets gracefully (if possible)
