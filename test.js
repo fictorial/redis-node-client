@@ -14,7 +14,7 @@
 var TEST_DB_NUMBER          = 15;
 var TEST_DB_NUMBER_FOR_MOVE = 14;
 
-var test = require("/mjsunit");
+var test = require("mjsunit");
 var redis = require("./redis");
 
 var pendingCallbacks = 0;
