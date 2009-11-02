@@ -48,6 +48,7 @@ function withConnection(callback) {
       writeDebugMessage("connected.");
       
       conn.setEncoding("utf8");
+      conn.setTimeout(0);
 
       if (typeof(callback) == "function")
         callback();
