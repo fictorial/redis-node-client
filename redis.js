@@ -176,6 +176,9 @@ function formatBulk(commandName, commandArgs, argCount) {
     args += ' ' + val;
   }
 
+  writeDebugMessage("formatBulk " + commandName + 
+    "; args=" + sys.inspect(commandArgs) + "; count=" + argCount);
+
   var lastArg = typeof(commandArgs[argCount - 1]) != 'string' 
     ? commandArgs[argCount - 1].toString() 
     : commandArgs[argCount - 1];
