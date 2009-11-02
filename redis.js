@@ -25,8 +25,8 @@
 
 var DEFAULT_PORT = 6379;
 
-var sys  = require("sys");
-var tcp  = require("/tcp");
+var sys = require("sys");
+var tcp = require("tcp");
 
 var conn = new process.tcp.Connection();
 
@@ -43,7 +43,8 @@ exports.connect = function(onConnect, port, host) {
   
   conn.addListener("connect", function(){
     conn.setEncoding("utf8");
-    onConnect();
+    if (typeof(onConnect) == "function")
+      onConnect();
   });
 }
 
