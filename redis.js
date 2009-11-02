@@ -170,10 +170,8 @@ var bulkCommands = {
 
 var callbacks = [];
 
-exports.debugMode = false;
-
 function writeDebugMessage(data) {
-  if (!exports.debugMode || !data)
+  if (!GLOBAL.DEBUG || !data)
     return;
 
   sys.debug(data.replace(/\r/g, '<CR>').replace(/\n/g, '<LF>'));

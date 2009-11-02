@@ -977,6 +977,6 @@ function runTests() {
   }, 6000);
 }
 
-redis.debugMode = true;
+GLOBAL.DEBUG = true;
 redis.connect(runTests);
 
