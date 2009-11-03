@@ -374,9 +374,12 @@ Client.prototype.sort = function(key, options, callback) {
         });
       }
 
-      var opt_asc   = options.ascending         ? ''                : 'desc';
-      var opt_alpha = options.lexicographically ? 'alpha'           : '';
-      var opt_store = options.store_key         ? options.store_key : '';
+      var opt_asc   = options.ascending         ? ''      : 'desc';
+      var opt_alpha = options.lexicographically ? 'alpha' : '';
+
+      var opt_store = '';
+      if (options.store_key) 
+        opt_store = 'store ' + options.store_key;
 
       var opt_limit = options.limit 
         ? 'limit ' + options.limit[0] + ' ' + options.limit[1] 
