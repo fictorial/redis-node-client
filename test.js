@@ -20,12 +20,10 @@ var pending_callbacks = 0;
 
 function expect_callback() {
   pending_callbacks++;
-  sys.debug("pending_callbacks = " + pending_callbacks);
 }
 
 function was_called_back() {
   pending_callbacks--;
-  sys.debug("pending_callbacks = " + pending_callbacks);
 }
 
 function expect_true_reply() {

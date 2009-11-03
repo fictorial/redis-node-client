@@ -60,7 +60,7 @@ function Client(port, host) {
 // Creates a client and connects to the given host:port, then calls a given
 // callback function (if any).
 
-exports.create_client = function(callback, port, host) {
+this.create_client = function(callback, port, host) {
   var client = new Client(port, host);
   client.with_connection(callback);
   return client;
