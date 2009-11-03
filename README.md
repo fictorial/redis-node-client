@@ -13,11 +13,10 @@ Redis server in a blocking call, Node-based code cannot.
 
 Typical Redis client (e.g. Python):
 
-    foo = redis.get('counter')
+    foo = client.get('counter')
 
 This Node-based Redis client:
     
-    var client = require("redis").create_client();
     var foo = client.get('counter', function(value) { 
       puts("counter = " + value) 
     });
