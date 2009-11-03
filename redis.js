@@ -42,12 +42,13 @@ var inline_commands = {
   keys:1, lastsave:1, lindex:1, llen:1, lpop:1, lrange:1, ltrim:1, mget:1,
   move:1, randomkey:1, rename:1, renamenx:1, rpop:1, save:1, scard:1, sdiff:1,
   sdiffstore:1, select:1, shutdown:1, sinter:1, sinterstore:1, smembers:1,
-  spop:1, sunion:1, sunionstore:1, ttl:1, type:1 
+  spop:1, srandmember:1, sunion:1, sunionstore:1, ttl:1, type:1, 
+  zrange:1, zrevrange:1, zcard:1, zrangebyscore:1
 };
 
 var bulk_commands = { 
   getset:1, lpush:1, lrem:1, lset:1, rpush:1, sadd:1, set:1,
-  setnx:1, sismember:1, smove:1, srem:1
+  setnx:1, sismember:1, smove:1, srem:1, zadd:1, zrem:1, zscore:1
 };
 
 function Client(port, host) {
@@ -152,10 +153,8 @@ function try_convert_to_number(str) {
 
 function format_inline(command_name, command_args, arg_count) {
   var str = command_name;
-
   for (var i = 0; i < arg_count; ++i)
     str += ' ' + command_args[i];
-
   return str + CRLF;
 }
 
@@ -175,11 +174,13 @@ function format_bulk_command(command_name, command_args, arg_count) {
     args += ' ' + val;
   }
 
-  var lastArg = typeof(command_args[arg_count - 1]) != 'string' 
+  var last_arg = typeof(command_args[arg_count - 1]) != 'string' 
     ? command_args[arg_count - 1].toString() 
     : command_args[arg_count - 1];
 
-  var formatted_command = args + ' ' + lastArg.length + CRLF + lastArg + CRLF;
+  var formatted_command = args + ' ' 
+    + last_arg.length + CRLF 
+    + last_arg        + CRLF;
 
   return formatted_command;
 }

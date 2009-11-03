@@ -1,12 +1,12 @@
 - Bring up to date with respect to redis HEAD
-  - SORT with STORE option (should already work)
-  - ZADD
-  - ZREM
-  - ZRANGE
-  - ZREVRANGE
-  - ZRANGEBYSCORE
-  - ZCARD 
-  - ZSCORE
-  - SRANDMEMBER
-  - MSET
+  = SORT with STORE option  (tests needed)
+  = ZADD (tests needed)
+  = ZREM (tests needed)
+  = ZRANGE (tests needed)
+  = ZREVRANGE (tests needed)
+  = ZRANGEBYSCORE (tests needed)
+  = ZCARD  (tests needed)
+  = ZSCORE (tests needed)
+  = SRANDMEMBER (tests needed)
+  - MSET (waiting for the dust to settle)
   - MSETNX
