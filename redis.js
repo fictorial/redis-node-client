@@ -60,8 +60,9 @@ function Client(port, host) {
 // Creates a client and connects to the given host:port, then calls a given
 // callback function (if any).
 
-exports.create_client = function(port, host) {
+exports.create_client = function(callback, port, host) {
   var client = new Client(port, host);
+  client.with_connection(callback);
   return client;
 }
 
@@ -124,7 +125,8 @@ Client.prototype.with_connection = function(callback) {
 
     this.conn.connect(this.port, this.host);
   } else if (this.conn.readyState == "open" && typeof(callback) == "function") {
-    callback(client);
+    if (typeof(callback) == "function")
+      callback(client);
   }
 };
 

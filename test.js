@@ -20,10 +20,12 @@ var pending_callbacks = 0;
 
 function expect_callback() {
   pending_callbacks++;
+  sys.debug("pending_callbacks = " + pending_callbacks);
 }
 
 function was_called_back() {
   pending_callbacks--;
+  sys.debug("pending_callbacks = " + pending_callbacks);
 }
 
 function expect_true_reply() {
@@ -977,5 +979,5 @@ function run_all_tests(client) {
   }, 6000);
 }
 
-require("./redis").create_client().with_connection(run_all_tests);
+require("./redis").create_client(run_all_tests);
 
