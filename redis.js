@@ -1,40 +1,13 @@
-// redis.js - a Redis client for server-side JavaScript, in particular Node
-// which runs atop Google V8.
-//
-// Please review the Redis command reference and protocol specification:
-// - http://code.google.com/p/redis/wiki/CommandReference
-// - http://code.google.com/p/redis/wiki/ProtocolSpecification
-//
-// This implementation should make for easy maintenance given that Redis
-// commands follow only a couple of conventions.  To add support for a new
-// command, simply add the name to either 'inline_commands' or 'bulk_commands'
-// below.
-//
-// Replies are handled generically and shouldn't need any updates unless Redis
-// adds a completely new response type (other than status code, integer, error,
-// bulk, and multi-bulk).  See http://code.google.com/p/redis/wiki/ReplyTypes
-//
-// Node is event driven / asynchronous with respect to all I/O.  Thus, we call
-// user code back when we parse Redis responses.  Note: redis responds in the
-// same order as commands are sent.  Thus, pipelining is perfectly valid.  See
-// the unit test(s) for examples of callbacks.
-//
-// [Node](http://tinyclouds.org/node)
-// [Google V8](http://code.google.com/p/v8)
-//
-// Author: Brian Hammond 
+// Redis client for Node.js
+// Author: Brian Hammond <brian at fictorial dot com>
 // Copyright (C) 2009 Fictorial LLC
 // License: MIT
 
-var sys = require("sys");
-var tcp = require("tcp");
+var sys = require("sys"), 
+    tcp = require("tcp");
 
-var CRLF        = "\r\n";
-var CRLF_LENGTH = 2;
-
-// Commands supported by Redis 1.0.  Note: 'sort', 'quit', and 'slaveof' are
-// handled as special cases.  Note: 'monitor' is not included as that's
-// generally only used in a telnet connection to the redis-server instance.
+var crlf = "\r\n", 
+    crlf_len = 2;
 
 var inline_commands = { 
   auth:1, bgsave:1, dbsize:1, decr:1, decrby:1, del:1,
@@ -51,309 +24,293 @@ var bulk_commands = {
   setnx:1, sismember:1, smove:1, srem:1, zadd:1, zrem:1, zscore:1
 };
 
-function Client(port, host) {
-  this.host      = host || '127.0.0.1';
-  this.port      = port || 6379;
+var Client = exports.Client = function (port, host) {
+  this.host = host || '127.0.0.1';
+  this.port = port || 6379;
   this.callbacks = [];
-  this.conn      = null;
-}
+  this.conn = null;
+};
 
-// Creates a client and connects to the given host:port, then calls a given
-// callback function (if any).
+// Callback a function after we've ensured we're connected to Redis.
 
-this.create_client = function(callback, port, host) {
-  var client = new Client(port, host);
-  client.with_connection(callback);
-  return client;
-}
-
-// Ensures that the connection is established before calling the given callback
-// function.  Sends 'this' as the first parameter to the callback (the Client).
-
-Client.prototype.with_connection = function(callback) {
-  var client = this;
-
-  if (!this.conn || this.conn.readyState != "open") {
+Client.prototype.connect = function (callback_on_connect) {
+  var self = this;
+  if (this.conn && this.conn.readyState === "open") {
+    if (typeof(callback_on_connect) === "function")
+      callback_on_connect();
+  } else {
     this.conn = new process.tcp.Connection();
-
-    this.conn.addListener("connect", function() {
-      write_debug("connected.");
-      
+    this.conn.addListener("connect", function () {
       this.setEncoding("utf8");
       this.setTimeout(0);          // try to stay connected.
-
-      if (typeof(callback) == "function")
-        callback(client);
+      this.setNoDelay();
+      if (typeof(callback_on_connect) === "function")
+        callback_on_connect();
     }); 
-
-    this.conn.addListener("receive", function(data){
-      if (GLOBAL.DEBUG) 
-        write_debug('< ' + data);
-
-      if (data.length == 0) 
-        throw "empty response";
-
-      var offset = 0;
-
-      while (offset < data.length) {
-        var reply_prefix  = data.charAt(offset);
-        var reply_handler = reply_prefix_to_handler[reply_prefix];
-
-        if (!reply_handler) 
-          throw "unknown prefix " + reply_prefix + " in reply @ offset " + offset;
-
-        var result_info = reply_handler(data, offset);
-        var result      = result_info[0];
-        offset          = result_info[1];
-
-        var callback = client.callbacks.shift();
-        if (callback && callback.fn) {
-          result = post_process_results(callback.formatted_command, result);
-          callback.fn(result);
-        }
-      }
+    this.conn.addListener("receive", function (data) {
+      if (!self.buffer)
+        self.buffer = "";
+      self.buffer += data;
+      self.handle_replies();
     });
-
-    this.conn.addListener("close", function(encountered_error) {
+    this.conn.addListener("close", function (encountered_error) {
       if (encountered_error) 
-        throw "disconnected from redis server in error -- redis server up?";
+        throw new Error("redis server up?");
     });
-
-    if (GLOBAL.DEBUG) 
-      write_debug('connecting to Redis instance on ' 
-        + this.host + ':' 
-        + this.port + "...");
-
     this.conn.connect(this.port, this.host);
-  } else if (this.conn.readyState == "open" && typeof(callback) == "function") {
-    if (typeof(callback) == "function")
-      callback(client);
+  }
+};
+
+// Reply handlers read replies from the current reply buffer.  At the time of
+// the call the buffer will start with at least the prefix associated with the
+// relevant reply type which is at this time always of length 1.  
+//
+// Note the buffer may not contain a full reply in which case these reply
+// handlers return null.  In this case the buffer is left intact for future
+// "receive" events to append onto, and the read-replies process repeats.
+// Repeat ad infinitum.  
+//
+// Each handler returns [ value, next_command_index ] on success, null on
+// underflow.
+
+var prefix_len = 1;
+
+// Bulk replies resemble:
+// $6\r\nFOOBAR\r\n
+
+Client.prototype.handle_bulk_reply = function (start_at, buf) {
+  var buffer = buf || this.buffer;
+  start_at = (start_at || 0) + prefix_len;
+  var crlf_at = buffer.indexOf(crlf, start_at);
+  if (crlf_at === -1) 
+    return null;
+  var value_len_str = buffer.substring(start_at, crlf_at);
+  var value_len = parseInt(value_len_str, 10);
+  if (value_len === NaN) 
+    throw new Error("invalid bulk value len: " + value_len_str);
+  if (value_len === -1)                 // value doesn't exist
+    return [ null, crlf_at + crlf_len ];  
+  var value_at = crlf_at + crlf_len;
+  var next_reply_at = value_at + value_len + crlf_len;
+  if (next_reply_at > buffer.length)
+    return null;
+  var value = buffer.substr(value_at, value_len);
+  return [ value, next_reply_at ];
+}
+
+// Mult-bulk replies resemble:
+// *4\r\n$3\r\nFOO\r\n$3\r\nBAR\r\n$5\r\nHELLO\r\n$5\r\nWORLD\r\n
+// *4 is the number of bulk replies to follow.
+
+Client.prototype.handle_multi_bulk_reply = function (buf) {
+  var buffer = buf || this.buffer;
+  var crlf_at = buffer.indexOf(crlf, prefix_len);
+  if (crlf_at === -1) 
+    return null;
+  var count_str = buffer.substring(prefix_len, crlf_at);
+  var count = parseInt(count_str, 10);
+  if (count === NaN) 
+    throw new Error("invalid multi-bulk count: " + count_str);
+  var next_reply_at = crlf_at + crlf_len;
+  if (count === -1)                   // value doesn't exist
+    return [ null, next_reply_at ];  
+  if (next_reply_at >= buffer.length) 
+    return null;
+  var results = [];
+  for (var i = 0; i < count; ++i) {
+    var bulk_reply = this.handle_bulk_reply(next_reply_at, buffer);
+    if (bulk_reply === null)             // no full multi-bulk cmd
+      return null;
+    var bulk_reply_value = bulk_reply[0];
+    results.push(bulk_reply_value);
+    next_reply_at = bulk_reply[1];
+  }
+  return [ results, next_reply_at ];
+};
+
+// Single line replies resemble:
+// +OK\r\n
+
+Client.prototype.handle_single_line_reply = function (buf) {
+  var buffer = buf || this.buffer;
+  var crlf_at = buffer.indexOf(crlf, prefix_len);
+  if (crlf_at === -1) 
+    return null;
+  var value = buffer.substring(prefix_len, crlf_at);
+  if (value === 'OK') 
+    value = true;
+  var next_reply_at = crlf_at + crlf_len;
+  return [ value, next_reply_at ];
+};
+
+// Integer replies resemble:
+// :1000\r\n
+
+Client.prototype.handle_integer_reply = function (buf) {
+  var buffer = buf || this.buffer;
+  var crlf_at = buffer.indexOf(crlf, prefix_len);
+  if (crlf_at === -1) 
+    return null;
+  var value_str = buffer.substring(prefix_len, crlf_at);
+  var value = parseInt(value_str, 10);
+  if (value === NaN) 
+    throw new Error("invalid integer reply: " + value_str);
+  var next_reply_at = crlf_at + crlf_len;
+  return [ value, next_reply_at ];
+};
+
+// Error replies resemble:
+// -ERR you suck at tennis\r\n
+
+Client.prototype.handle_error_reply = function (buf) {
+  var buffer = buf || this.buffer;
+  var crlf_at = buffer.indexOf(crlf, prefix_len);
+  if (crlf_at === -1) 
+    return null;
+  var value = buffer.substring(prefix_len, crlf_at);
+  var next_reply_at = crlf_at + crlf_len;
+  if (value.indexOf("ERR ") === 0)
+    value = value.substr("ERR ".length);
+  return [ value, next_reply_at ];
+}
+
+// Try to read as many replies from the current buffer as we can.  Leave
+// partial replies in the buffer, else eat 'em.  Dispatch any promises waiting
+// for these replies.  Error replies emit error on the promise, else success is
+// emitted.
+
+Client.prototype.handle_replies = function () {
+  while (this.buffer.length > 0) {
+    if (DEBUG) {
+      write_debug('---');
+      write_debug('buffer: ' + this.buffer);
+    }
+    var prefix = this.buffer.charAt(0);
+    var result, is_error = false;
+    switch (prefix) {
+      case '$': result = this.handle_bulk_reply();                   break;
+      case '*': result = this.handle_multi_bulk_reply();             break;
+      case '+': result = this.handle_single_line_reply();            break;
+      case ':': result = this.handle_integer_reply();                break;
+      case '-': result = this.handle_error_reply(); is_error = true; break;
+    }
+    // The handlers return null when there's not enough data
+    // in the buffer to read a full reply.  Leave the buffer alone until
+    // we receive more data.
+    if (result === null) 
+      break;
+    if (DEBUG) {
+      write_debug('prefix: ' + prefix);
+      write_debug('result: ' + JSON.stringify(result));
+    }
+    var next_reply_at = result[1];
+    this.buffer = this.buffer.substring(next_reply_at);
+    var callback = this.callbacks.shift();
+    if (callback.promise) {
+      var result_value = result[0];
+      if (is_error) 
+        callback.promise.emitError(result_value);
+      else {
+        result_value = post_process_results(callback.command, result_value);
+        callback.promise.emitSuccess(result_value);
+      }
+    }
   }
 };
 
 function write_debug(data) {
-  if (!GLOBAL.DEBUG || !data)
-    return;
-
-  sys.debug(data.replace(/\r/g, '<CR>').replace(/\n/g, '<LF>'));
+  if (!DEBUG || !data) return;
+  sys.puts(data.replace(/\r\n/g, '<CRLF>'));
 }
 
 function try_convert_to_number(str) {
-  if (/^\s*\d+\s*$/.test(str)) 
-    return parseInt(str, 10);
-
-  if (/^\s*\d+\.(\d+)?\s*$/.test(str))
-    return parseFloat(str);
-
-  return str;
+  var value = parseInt(str, 10);
+  if (value === NaN) 
+    value = parseFloat(str);
+  if (value === NaN) 
+    return str;
+  return value;
 }
 
-// Format an inline redis command.
-// See http://code.google.com/p/redis/wiki/ProtocolSpecification#Simple_INLINE_commands
-
-function format_inline(command_name, command_args, arg_count) {
-  var str = command_name;
-  for (var i = 0; i < arg_count; ++i)
-    str += ' ' + command_args[i];
-  return str + CRLF;
+function format_inline(name, args) {
+  var command = name;
+  for (var arg in args) 
+    command += ' ' + args[arg].toString();
+  return command + crlf;
 }
 
-// Format a bulk redis command.
-// e.g. lset key index value => lset key index value-length\r\nvalue\r\n
-// where lset is command_name; key, index, and value are command_args
-// See http://code.google.com/p/redis/wiki/ProtocolSpecification#Bulk_commands
-
-function format_bulk_command(command_name, command_args, arg_count) {
-  var args = command_name;
-
-  for (var i = 0; i < arg_count - 1; ++i) {
-    var val = typeof(command_args[i]) != 'string' 
-      ? command_args[i].toString() 
-      : command_args[i];
-
-    args += ' ' + val;
-  }
-
-  var last_arg = typeof(command_args[arg_count - 1]) != 'string' 
-    ? command_args[arg_count - 1].toString() 
-    : command_args[arg_count - 1];
-
-  var formatted_command = args + ' ' 
-    + last_arg.length + CRLF 
-    + last_arg        + CRLF;
-
-  return formatted_command;
+function format_bulk_command(name, args) {
+  var output = name;
+  for (var i = 0; i < args.length - 1; ++i) 
+    output += ' ' + args[i].toString();
+  var last_arg = args[args.length - 1].toString();
+  return output + ' ' + last_arg.length + crlf + last_arg + crlf;
 }
 
-// Creates a function to send a command to the redis server.
-
-function make_command_sender(command_name) {
-  Client.prototype[command_name] = function() {
-    var args = arguments;
-
-    this.with_connection(function(client) {
-      // last arg (if any) should be callback function.
-
-      var callback  = null;
-      var arg_count = args.length;
-
-      if (typeof(args[args.length - 1]) == 'function') {
-        callback  = args[args.length - 1];
-        arg_count = args.length - 1;
+function make_command_sender(name) {
+  Client.prototype[name] = function () {
+    if (DEBUG) {
+      var description = "client." + name + "( ";
+      for (var a in arguments) 
+        description += "'" + arguments[a] + "',";
+      description = description.substr(0, description.length - 1) + " )";
+    }
+    var args = arguments;    
+    var self = this;
+    var promise = new process.Promise();
+    this.connect(function () {
+      var command;
+      if (inline_commands[name]) 
+        command = format_inline(name, args);
+      else if (bulk_commands[name]) 
+        command = format_bulk_command(name, args);
+      else 
+        throw new Error('unknown command type for "' + name + '"');
+      if (DEBUG) {
+        write_debug("---");
+        write_debug("call:   " + description);
+        write_debug("command:" + command);
       }
-
-      // Format the command and send it.
-
-      var formatted_command;
-
-      if (inline_commands[command_name]) {
-        formatted_command = format_inline(command_name, args, arg_count);
-      } else if (bulk_commands[command_name]) {
-        formatted_command = format_bulk_command(command_name, args, arg_count);
-      } else { 
-        throw 'unknown command ' + command_name;
-      }
-      
-      write_debug('> ' + formatted_command);
-
-      // Always push something, even if its null.
-      // We need received replies to match number of entries in `callbacks`.
-
-      client.callbacks.push({ fn:callback, formatted_command:command_name.toLowerCase() });
-      client.conn.send(formatted_command);
+      self.callbacks.push({ promise:promise, command:name.toLowerCase() });
+      self.conn.send(command);
     });
+    return promise;
   };
 }
 
-// Create command senders for all commands.
+for (var name in inline_commands) 
+  make_command_sender(name);
 
-for (var command_name in inline_commands)
-  make_command_sender(command_name);
-
-for (var command_name in bulk_commands)
-  make_command_sender(command_name);
-
-// All reply handlers are passed the full received data which may contain
-// multiple replies.  Each should return [ result, offsetOfFollowingReply ]
-
-function handle_bulk_reply(reply, offset) {
-  ++offset; // skip '$'
-
-  var crlf_index = reply.indexOf(CRLF, offset);
-  var valueLength = parseInt(reply.substr(offset, crlf_index - offset), 10);
-
-  if (valueLength == -1) 
-    return [ null, crlf_index + CRLF_LENGTH ];
-
-  var value = reply.substr(crlf_index + CRLF_LENGTH, valueLength);
-
-  var nextOffset = crlf_index   + CRLF_LENGTH + 
-                   valueLength + CRLF_LENGTH;
-
-  return [ value, nextOffset ];
-}
-
-function handle_multi_bulk_reply(reply, offset) {
-  ++offset; // skip '*'
-
-  var crlf_index = reply.indexOf(CRLF, offset);
-  var count = parseInt(reply.substr(offset, crlf_index - offset), 10);
-
-  offset = crlf_index + CRLF_LENGTH;
-
-  if (count === -1) 
-    return [ null, offset ];
-
-  var entries = [];
-
-  for (var i = 0; i < count; ++i) {
-    var bulkReply = handle_bulk_reply(reply, offset);
-    entries.push(bulkReply[0]);
-    offset = bulkReply[1];
-  }
-
-  return [ entries, offset ];
-}
-
-function handle_single_line_reply(reply, offset) {
-  ++offset; // skip '+'
-
-  var crlf_index = reply.indexOf(CRLF, offset);
-  var value = reply.substr(offset, crlf_index - offset);
-
-  // Most single-line replies are '+OK' so convert such to a true value. 
-
-  if (value === 'OK') 
-    value = true;
-
-  return [ value, crlf_index + CRLF_LENGTH ];
-}
-
-function handle_integer_reply(reply, offset) {
-  ++offset; // skip ':'
-
-  var crlf_index = reply.indexOf(CRLF, offset);
-
-  return [ parseInt(reply.substr(offset, crlf_index - offset), 10), 
-           crlf_index + CRLF_LENGTH ];
-}
-
-function handle_error_reply(reply, offset) {
-  ++offset; // skip '-'
-
-  var crlf_index = reply.indexOf(CRLF, offset);
-
-  var error_message = (reply.indexOf("ERR ") != 0)
-    ? "something bad happened: " + reply.substr(offset, crlf_index - offset)
-    : reply.substr(4, crlf_index - 4);
-
-  throw error_message;
-}
-
-// See http://code.google.com/p/redis/wiki/ReplyTypes
-
-var reply_prefix_to_handler = {
-  '$': handle_bulk_reply,
-  '*': handle_multi_bulk_reply,
-  '+': handle_single_line_reply,
-  ':': handle_integer_reply,
-  '-': handle_error_reply
-};
-
-// INFO output is an object with properties for each server metadatum.
-// KEYS output is a list (which is more intuitive than a ws-delimited string).
+for (var name in bulk_commands)   
+  make_command_sender(name);
 
 function post_process_results(command, result) {
+  var new_result = result;
   switch (command) {
-  case 'info':
-    var info_object = {};
-
-    result.split('\r\n').forEach(function(line) {
-      var parts = line.split(':');
-      if (parts.length == 2)
-        info_object[parts[0]] = try_convert_to_number(parts[1]);
-    });
-
-    result = info_object;
-    break;
-
-  case 'keys':
-    result = result.split(' ');
-    break;
-
-  case 'lastsave':
-    result = try_convert_to_number(result);
-    break;
-
-  default:
-    break;
+    case 'info':
+      var info = {};
+      result.split(/\r\n/g).forEach(function (line) {
+        var parts = line.split(':');
+        if (parts.length === 2)
+          info[parts[0]] = try_convert_to_number(parts[1]);
+      });
+      new_result = info;
+      break;
+    case 'keys': 
+      new_result = result.split(' '); 
+      break;
+    case 'lastsave': 
+      new_result = try_convert_to_number(result); 
+      break;
+    default: 
+      break;
   }
-
-  return result;
+  return new_result;
 }
 
-// Read this first: http://code.google.com/p/redis/wiki/SortCommand
-// options is an object which can have the following properties:
+// Read this: http://code.google.com/p/redis/wiki/SortCommand
+// 'key' is what to sort, 'options' is how to sort.
+// 'options' is an object with optional properties:
 //   'by_pattern': 'pattern'
 //   'limit': [start, end]
 //   'get_patterns': [ 'pattern', 'pattern', ... ]
@@ -361,85 +318,59 @@ function post_process_results(command, result) {
 //   'lexicographically': true|false
 //   'store_key': 'a_key_name'
 
-Client.prototype.sort = function(key, options, callback) {
-  this.with_connection(function(client) {
-    var formatted_command = 'sort ' + key;
-
+Client.prototype.sort = function (key, options) {
+  var promise = new process.Promise();
+  var self = this;
+  this.connect(function () {
+    var opts = [];
     if (typeof(options) == 'object') {
-      var opt_by = options.by_pattern ? ('by ' + options.by_pattern) : '';
-
-      var opt_get = '';
+      if (options.by_pattern) 
+        opts.push('by ' + options.by_pattern);
       if (options.get_patterns) {
-        options.get_patterns.forEach(function(pat) {
-          opt_get += 'get ' + pat + ' ';
+        options.get_patterns.forEach(function (pat) {
+          opts.push('get ' + pat);
         });
       }
-
-      var opt_asc   = options.ascending         ? ''      : 'desc';
-      var opt_alpha = options.lexicographically ? 'alpha' : '';
-
-      var opt_store = '';
+      if (!options.ascending)
+        opts.push('desc');
+      if (options.lexicographically)
+        opts.push('alpha');
       if (options.store_key) 
-        opt_store = 'store ' + options.store_key;
-
-      var opt_limit = options.limit 
-        ? 'limit ' + options.limit[0] + ' ' + options.limit[1] 
-        : '';
-
-      formatted_command += ' ' + opt_by    + ' ' +
-                                 opt_limit + ' ' +
-                                 opt_get   + ' ' +
-                                 opt_asc   + ' ' + 
-                                 opt_alpha + ' ' + 
-                                 opt_store + ' ' + CRLF;
-
-      formatted_command = formatted_command.replace(/\s+$/, '') + CRLF;
-    }
-    
-    if (GLOBAL.DEBUG) 
-      write_debug('> ' + formatted_command);
-
-    client.conn.send(formatted_command);
-
-    // Always push something, even if its null.
-    // We need received replies to match number of entries in `callbacks`.
-
-    client.callbacks.push({ fn:callback, formatted_command:'sort' });
+        opts.push('store ' + options.store_key);
+      if (options.limit)
+        opts.push('limit ' + options.limit[0] + ' ' + options.limit[1]);
+    } 
+    var command = 'sort ' + key + ' ' + opts.join(' ') + crlf;
+    write_debug("call:    client.sort(...)\ncommand: " + command);
+    self.callbacks.push({ promise:promise, command:'sort' });
+    self.conn.send(command);
   });
+  return promise;
 }
 
-// Close the connection.
-
-Client.prototype.quit = function() {
+Client.prototype.quit = function () {
   if (this.conn.readyState != "open") {
     this.conn.close();
-    return;
+  } else {
+    this.conn.send('quit' + crlf);
+    this.conn.close();
   }
-  write_debug('> quit');
-  this.conn.send('quit' + CRLF);
-  this.conn.close();
-}
+};
 
-// Make the current redis instance we're connected to a master
-// in a master-slave replication configuration.
-
-Client.prototype.make_master = function() {
-  this.with_connection(function(client) {
-    write_debug('> slaveof no one');  // I am SPARTACUS!
-    client.conn.send('slaveof no one');
-    client.callbacks.push({ fn:null, formatted_command:'slaveof' });
+Client.prototype.make_master = function () {
+  var self = this;
+  this.connect(function () {
+    self.callbacks.push({ promise:null, command:'slaveof' });
+    self.conn.send('slaveof no one');
   });
-}
+};
 
-// Make the current redis instance we're connected to a slave
-// in a master-slave replication configuration.
-
-Client.prototype.make_slave_of = function(host, port) {
-  this.with_connection(function(client) {
-    port = port || DEFAULT_PORT;
-    var formatted_command = 'slaveof ' + host + ' ' + port;
-    write_debug('> ' + formatted_command);
-    client.conn.send(formatted_command);
-    client.callbacks.push({ fn:null, formatted_command:'slaveof' });
+Client.prototype.make_slave_of = function (host, port) {
+  var self = this;
+  this.connect(function () {
+    port = port || 6379;
+    var command = 'slaveof ' + host + ' ' + port;
+    self.callbacks.push({ promise:null, command:'slaveof' });
+    self.conn.send(command);
   });
-}
+};
