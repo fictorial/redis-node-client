@@ -9,6 +9,7 @@ var sys = require("sys"),
 var crlf = "\r\n", 
     crlf_len = 2;
 
+
 var inline_commands = { 
   auth:1, bgsave:1, dbsize:1, decr:1, decrby:1, del:1,
   exists:1, expire:1, flushall:1, flushdb:1, get:1, incr:1, incrby:1, info:1,
@@ -58,6 +59,13 @@ Client.prototype.connect = function (callback_on_connect) {
         throw new Error("redis server up?");
     });
     this.conn.connect(this.port, this.host);
+  }
+};
+
+Client.prototype.close = function () {
+  if (this.conn && this.conn.readyState === "open") {
+    this.conn.close();
+    this.conn = null;
   }
 };
 
@@ -181,7 +189,7 @@ Client.prototype.handle_error_reply = function (buf) {
 
 Client.prototype.handle_replies = function () {
   while (this.buffer.length > 0) {
-    if (DEBUG) {
+    if (GLOBAL.DEBUG) {
       write_debug('---');
       write_debug('buffer: ' + this.buffer);
     }
@@ -199,7 +207,7 @@ Client.prototype.handle_replies = function () {
     // we receive more data.
     if (result === null) 
       break;
-    if (DEBUG) {
+    if (GLOBAL.DEBUG) {
       write_debug('prefix: ' + prefix);
       write_debug('result: ' + JSON.stringify(result));
     }
@@ -219,7 +227,7 @@ Client.prototype.handle_replies = function () {
 };
 
 function write_debug(data) {
-  if (!DEBUG || !data) return;
+  if (!GLOBAL.DEBUG || !data) return;
   sys.puts(data.replace(/\r\n/g, '<CRLF>'));
 }
 
@@ -249,7 +257,7 @@ function format_bulk_command(name, args) {
 
 function make_command_sender(name) {
   Client.prototype[name] = function () {
-    if (DEBUG) {
+    if (GLOBAL.DEBUG) {
       var description = "client." + name + "( ";
       for (var a in arguments) 
         description += "'" + arguments[a] + "',";
@@ -266,7 +274,7 @@ function make_command_sender(name) {
         command = format_bulk_command(name, args);
       else 
         throw new Error('unknown command type for "' + name + '"');
-      if (DEBUG) {
+      if (GLOBAL.DEBUG) {
         write_debug("---");
         write_debug("call:   " + description);
         write_debug("command:" + command);

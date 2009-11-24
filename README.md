@@ -16,12 +16,28 @@ Typical Redis client (e.g. Python):
     foo = client.get('counter')
 
 This Node.js-based Redis client:
-    
-    var foo = client.get('counter').addCallback(function (value) { 
-      puts("counter = " + value) 
-    }).addErrback(function (error) {
-      sys.puts("oops! " + error);
-    });
+
+    var sys = require("sys");
+    var redis = require("./redis");
+
+    var client = new redis.Client();
+    client.connect(learn_to_count);
+
+    function learn_to_count () {
+        client.incr('counter').addCallback(function (value) {
+            sys.puts("counter is now " + value);
+            client.close();
+        });
+    }
+
+Running this example, we'd see:
+
+    $ node counter-example.js
+    counter is now 1
+    $ node counter-example.js
+    counter is now 2
+    $ node counter-example.js
+    counter is now 3
 
 That is, you must supply a callback function that is called when Redis returns,
 even if Redis queries are extremely fast.
