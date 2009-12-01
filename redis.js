@@ -25,6 +25,10 @@ var bulk_commands = {
   setnx:1, sismember:1, smove:1, srem:1, zadd:1, zrem:1, zscore:1
 };
 
+var multi_bulk_commands = {
+  mset:1, msetnx:1
+};
+
 var Client = exports.Client = function (port, host) {
   this.host = host || '127.0.0.1';
   this.port = port || 6379;
@@ -255,6 +259,13 @@ function format_bulk_command(name, args) {
   return output + ' ' + last_arg.length + crlf + last_arg + crlf;
 }
 
+function format_multi_bulk_command(name, args) {
+  var output = '*' + (args.length + 1) + crlf + '$' + name.length + crlf + name + crlf;
+  for (var i = 0; i < args.length; ++i)
+    output += '$' + args[i].length + crlf + args[i] + crlf;
+  return output;
+}
+
 function make_command_sender(name) {
   Client.prototype[name] = function () {
     if (GLOBAL.DEBUG) {
@@ -272,6 +283,8 @@ function make_command_sender(name) {
         command = format_inline(name, args);
       else if (bulk_commands[name]) 
         command = format_bulk_command(name, args);
+      else if (multi_bulk_commands[name]) 
+        command = format_multi_bulk_command(name, args);
       else 
         throw new Error('unknown command type for "' + name + '"');
       if (GLOBAL.DEBUG) {
@@ -290,6 +303,9 @@ for (var name in inline_commands)
   make_command_sender(name);
 
 for (var name in bulk_commands)   
+  make_command_sender(name);
+
+for (var name in multi_bulk_commands)   
   make_command_sender(name);
 
 function post_process_results(command, result) {

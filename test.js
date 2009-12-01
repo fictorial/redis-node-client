@@ -877,6 +877,19 @@ function test_set_number() {
   expect_true_reply(client.set('ggg', 123));
 }
 
+function test_mset() {
+  // set a=b, c=d, e=f
+  expect_true_reply(client.mset('a','b','c','d','e','f'));
+}
+
+function test_msetnx() {
+  // should fail since key 'a' as we already set it
+  expect_zero_as_reply(client.msetnx('g', 'h', 'a', 'i'));
+  // should pass as key 'g' was NOT set in prev. command
+  // since it failed due to key 'a' already existing.
+  expect_one_as_reply(client.msetnx('g', 'h', 'i', 'j'));
+}
+
 // First, let's make sure the reply parsers are working.
 
 function test_bulk_reply() {
@@ -996,6 +1009,7 @@ var client_tests = [
   test_spop, test_sdiff, test_sdiffstore,
   test_sunionstore, test_type, test_move, test_sort, test_save, test_bgsave, 
   test_lastsave, test_flushall, test_shutdown, test_set_number,
+  test_mset, test_msetnx
 ];
 
 client.connect(function () {
