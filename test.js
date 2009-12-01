@@ -215,7 +215,7 @@ function test_keys() {
   expect_callback();
   client.keys('*').addCallback(function (keys) {
     test.assertEquals(keys.length, 5);
-    test.assertEquals(['baz','boo','foo','foo2', 'unicode'], keys.sort());
+    test.assertEquals(['baz','boo','foo','foo2','unicode'], keys.sort());
     was_called_back();
   });
 
@@ -229,10 +229,10 @@ function test_keys() {
 }
 
 function test_randomkey() {
-  // At this point we have foo, baz, boo, and foo2.
+  // At this point we have foo, baz, boo, foo2, unicode.
   expect_callback();
   client.randomkey().addCallback(function (someKey) {
-    test.assertTrue(/^(foo|foo2|boo|baz)$/.test(someKey));
+    test.assertTrue(/^(foo|foo2|boo|baz|unicode)$/.test(someKey));
     was_called_back();
   });
 }
