@@ -42,7 +42,7 @@ Client.prototype.connect = function (callback_on_connect) {
   } else {
     this.conn = new process.tcp.Connection();
     this.conn.addListener("connect", function () {
-      this.setEncoding("utf8");
+      this.setEncoding("binary");
       this.setTimeout(0);          // try to stay connected.
       this.setNoDelay();
       if (typeof(callback_on_connect) === "function")

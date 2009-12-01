@@ -147,6 +147,16 @@ function test_getset() {
   });
 }
 
+function test_set_and_get_multibyte() {
+  var test_value = unescape('%F6');
+  expect_true_reply(client.set('unicode', test_value));
+  expect_callback();
+  client.get('unicode').addCallback(function (value) { 
+    test.assertEquals(test_value, value);
+    was_called_back(); 
+  });
+}
+
 function test_info() {
   expect_callback();
   client.info().addCallback(function (info) {
@@ -201,11 +211,11 @@ function test_keys() {
     was_called_back();
   });
 
-  // At this point we have foo, baz, boo, and foo2.
+  // At this point we have foo, baz, boo, and foo2, unicode
   expect_callback();
   client.keys('*').addCallback(function (keys) {
-    test.assertEquals(keys.length, 4);
-    test.assertEquals(['baz','boo','foo','foo2'], keys.sort());
+    test.assertEquals(keys.length, 5);
+    test.assertEquals(['baz','boo','foo','foo2', 'unicode'], keys.sort());
     was_called_back();
   });
 
@@ -245,7 +255,7 @@ function test_renamenx() {
 function test_dbsize() {
   expect_callback();
   client.dbsize().addCallback(function (value) { 
-    test.assertEquals(4, value); 
+    test.assertEquals(5, value); 
     was_called_back();
   });
 }
@@ -976,7 +986,8 @@ sys.debug("reply parsers work");
 
 var client_tests = [ 
   test_auth, test_select, test_flushdb, test_set, test_setnx,
-  test_get, test_mget, test_getset, test_info, test_incr, test_incrby, test_decr,
+  test_get, test_mget, test_getset, test_set_and_get_multibyte, test_info, 
+  test_incr, test_incrby, test_decr,
   test_decrby, test_exists, test_del, test_keys, test_randomkey, test_rename,
   test_renamenx, test_dbsize, test_expire, test_ttl, test_rpush, test_lpush,
   test_llen, test_lrange, test_ltrim, test_lindex, test_lset, test_lrem,
@@ -984,7 +995,7 @@ var client_tests = [
   test_smembers, test_smove, test_sinter, test_sinterstore, test_sunion,
   test_spop, test_sdiff, test_sdiffstore,
   test_sunionstore, test_type, test_move, test_sort, test_save, test_bgsave, 
-  test_lastsave, test_flushall, test_shutdown, test_set_number
+  test_lastsave, test_flushall, test_shutdown, test_set_number,
 ];
 
 client.connect(function () {
