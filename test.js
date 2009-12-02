@@ -845,6 +845,22 @@ function test_sort() {
     test.assertEquals(['foo','bux','bar','tux','baz','lux','buz','qux'], sorted);
     was_called_back();
   });
+
+  // Try sorting with a 'by' pattern and 2 'get' patterns.
+  // Instead of getting back the sorted set/list, store the values to a list.
+  // Then check that the values are there in the expected order.
+
+  expect_callback();
+  opts = { ascending:true, by_pattern:'w_*', 
+           get_patterns:['o_*', 'p_*'], store_key:'bacon' };
+  client.sort('x', opts).addCallback(function () {
+    was_called_back();
+    expect_callback();
+    client.lrange('bacon', 0, -1).addCallback(function (values) {
+      test.assertEquals(['foo','bux','bar','tux','baz','lux','buz','qux'], values);
+      was_called_back();
+    });
+  });
 }
 
 function test_save() {
@@ -888,6 +904,94 @@ function test_msetnx() {
   // should pass as key 'g' was NOT set in prev. command
   // since it failed due to key 'a' already existing.
   expect_one_as_reply(client.msetnx('g', 'h', 'i', 'j'));
+}
+
+function test_zadd() {
+  expect_one_as_reply(client.zadd('z0',100,'m0'));
+  // Already added m0; just update the score to 50:
+  expect_zero_as_reply(client.zadd('z0',50,'m0'));
+}
+
+function test_zrem() {
+  expect_one_as_reply(client.zrem('z0','m0'));
+  expect_zero_as_reply(client.zrem('z0','m0'));
+}
+
+function test_zcard() {
+  expect_zero_as_reply(client.zcard('zzzzzz')); // doesn't exist.
+  expect_one_as_reply(client.zadd('z0',100,'m0'));
+  expect_numeric_reply(1, client.zcard('z0'));
+  expect_one_as_reply(client.zadd('z0',200,'m1'));
+  expect_numeric_reply(2, client.zcard('z0'));
+}
+
+function test_zscore() {
+  expect_numeric_reply(100,client.zscore('z0','m0'));
+  expect_numeric_reply(200,client.zscore('z0','m1'));
+  expect_callback();
+  client.zscore('z0','zzzzzzz').addCallback(function (score) { 
+    test.assertTrue(isNaN(score));
+    was_called_back();
+  });
+}
+
+function test_zrange() {
+  expect_one_as_reply(client.zadd('z0',300,'m2'));
+  expect_callback();
+  client.zrange('z0',0,1000).addCallback(function (members) { 
+    test.assertEquals(3, members.length);
+    test.assertEquals('m0', members[0]);
+    test.assertEquals('m1', members[1]);
+    test.assertEquals('m2', members[2]);
+    was_called_back();
+  });
+  expect_callback();
+  client.zrange('z0',-1,-1).addCallback(function (members) { 
+    test.assertEquals(1, members.length);
+    test.assertEquals('m2', members[0]);
+    was_called_back();
+  });
+  expect_callback();
+  client.zrange('z0',-2,-1).addCallback(function (members) { 
+    test.assertEquals(2, members.length);
+    test.assertEquals('m1', members[0]);
+    test.assertEquals('m2', members[1]);
+    was_called_back();
+  });
+}
+
+function test_zrevrange() {
+  expect_callback();
+  client.zrevrange('z0',0,1000).addCallback(function (members) { 
+    test.assertEquals(3, members.length);
+    test.assertEquals('m2', members[0]);
+    test.assertEquals('m1', members[1]);
+    test.assertEquals('m0', members[2]);
+    was_called_back();
+  });
+}
+
+function test_zrangebyscore() {
+  expect_callback();
+  client.zrangebyscore('z0',200,300).addCallback(function (members) {
+    test.assertEquals(2, members.length);
+    test.assertEquals('m1', members[0]);
+    test.assertEquals('m2', members[1]);
+    was_called_back();
+  });
+  expect_callback();
+  client.zrangebyscore('z0',100,1000).addCallback(function (members) {
+    test.assertEquals(3, members.length);
+    test.assertEquals('m0', members[0]);
+    test.assertEquals('m1', members[1]);
+    test.assertEquals('m2', members[2]);
+    was_called_back();
+  });
+  expect_callback();
+  client.zrangebyscore('z0',10000,100000).addCallback(function (members) {
+    test.assertEquals(0, members.length);
+    was_called_back();
+  });
 }
 
 // First, let's make sure the reply parsers are working.
@@ -1007,9 +1111,13 @@ var client_tests = [
   test_lpop, test_rpop, test_sadd, test_sismember, test_scard, test_srem,
   test_smembers, test_smove, test_sinter, test_sinterstore, test_sunion,
   test_spop, test_sdiff, test_sdiffstore,
-  test_sunionstore, test_type, test_move, test_sort, test_save, test_bgsave, 
+  test_sunionstore, test_type, test_move, 
+  test_sort, 
+  test_mset, test_msetnx,
+  test_zadd, test_zrem, test_zcard, test_zscore, test_zrange, test_zrevrange,
+  test_zrangebyscore,
+  test_save, test_bgsave, 
   test_lastsave, test_flushall, test_shutdown, test_set_number,
-  test_mset, test_msetnx
 ];
 
 client.connect(function () {

@@ -324,6 +324,9 @@ function post_process_results(command, result) {
       new_result = result.split(' '); 
       break;
     case 'lastsave': 
+    case 'scard':
+    case 'zcard':
+    case 'zscore':
       new_result = try_convert_to_number(result); 
       break;
     default: 
