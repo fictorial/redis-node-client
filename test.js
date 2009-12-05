@@ -22,9 +22,9 @@ var TEST_DB_NUMBER = 15,
 
 var sys = require("sys"),
     test = require("mjsunit"),
-    redis = require("./redis");
+    redisclient = require("./redisclient");
 
-var client = new redis.Client();
+var client = new redisclient.Client();
 
 var pending_callbacks = 0;
 
