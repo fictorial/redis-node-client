@@ -459,6 +459,39 @@ function test_rpop() {
   });
 }
 
+function test_rpoplpush() {
+  expect_zero_as_reply(client.exists('rpoplpush_source'));
+  expect_zero_as_reply(client.exists('rpoplpush_target'));
+
+  expect_true_reply(client.rpush('rpoplpush_source', 'ABC')); 
+  expect_true_reply(client.rpush('rpoplpush_source', 'DEF')); 
+
+  // rpoplpush_source = [ 'ABC', 'DEF' ]
+  // rpoplpush_target = [ ]
+
+  expect_callback();
+  client.rpoplpush('rpoplpush_source', 'rpoplpush_target').addCallback(function (value) { 
+    was_called_back();
+    test.assertEquals('DEF', value);
+
+    // rpoplpush_source = [ 'ABC' ]
+
+    expect_callback();
+    client.lrange('rpoplpush_source', 0, -1).addCallback(function (values) {
+      test.assertEquals(['ABC'], values);
+      was_called_back();
+    });
+
+    // rpoplpush_target = [ 'DEF' ]
+
+    expect_callback();
+    client.lrange('rpoplpush_target', 0, -1).addCallback(function (values) {
+      test.assertEquals(['DEF'], values);
+      was_called_back();
+    });
+  });
+}
+
 function test_sadd() {
   // create set0
   expect_one_as_reply(client.sadd('set0', 'member0'));  
@@ -1108,7 +1141,7 @@ var client_tests = [
   test_decrby, test_exists, test_del, test_keys, test_randomkey, test_rename,
   test_renamenx, test_dbsize, test_expire, test_ttl, test_rpush, test_lpush,
   test_llen, test_lrange, test_ltrim, test_lindex, test_lset, test_lrem,
-  test_lpop, test_rpop, test_sadd, test_sismember, test_scard, test_srem,
+  test_lpop, test_rpop, test_rpoplpush, test_sadd, test_sismember, test_scard, test_srem,
   test_smembers, test_smove, test_sinter, test_sinterstore, test_sunion,
   test_spop, test_sdiff, test_sdiffstore,
   test_sunionstore, test_type, test_move, 

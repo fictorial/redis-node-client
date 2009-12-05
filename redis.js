@@ -22,7 +22,8 @@ var inline_commands = {
 
 var bulk_commands = { 
   getset:1, lpush:1, lrem:1, lset:1, rpush:1, sadd:1, set:1,
-  setnx:1, sismember:1, smove:1, srem:1, zadd:1, zrem:1, zscore:1
+  setnx:1, sismember:1, smove:1, srem:1, zadd:1, zrem:1, zscore:1,
+  rpoplpush:1
 };
 
 var multi_bulk_commands = {
