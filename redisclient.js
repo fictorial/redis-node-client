@@ -39,10 +39,11 @@ var Client = exports.Client = function (port, host) {
   this.conn = null;
 };
 
-// The client emits "connected" a connection is established, and 
-// emits "connection_failed" when a connection failed in error.
-// Performing any Redis operation on a client with a closed connection
-// will attempt to reopen the connection.
+// The client emits "connect" a connection is established, and emits "close"
+// when a connection is closed (passing boolean true if failed in error).
+//
+// Note that calling a Redis client method when the connection is closed will
+// automatically attempt to reconnect to Redis first.
 
 sys.inherits(Client, process.EventEmitter);
 
@@ -61,7 +62,7 @@ Client.prototype.connect = function (callback) {
       this.setEncoding("binary");
       this.setTimeout(0);          // try to stay connected.
       this.setNoDelay();
-      self.emit("connected");
+      self.emit("connect");
       if (typeof(callback) === 'function')
         callback();
     }); 
@@ -80,8 +81,7 @@ Client.prototype.connect = function (callback) {
 
     this.conn.addListener("close", function (encountered_error) {
       self.conn = null;
-      if (encountered_error)
-        self.emit("connection_failed");
+      self.emit("close", encountered_error);
     });
 
     this.conn.connect(this.port, this.host);
@@ -89,7 +89,7 @@ Client.prototype.connect = function (callback) {
 };
 
 Client.prototype.close = function () {
-  if (this.conn && this.conn.readyState === "open") {
+  if (this.conn) {
     this.conn.close();
     this.conn = null;
   }

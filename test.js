@@ -1159,9 +1159,10 @@ function run_all_tests() {
 var connection_failed = false;
 var client = new redisclient.Client();
 
-client.addListener("connection_failed", function () {
-  connection_failed = true;
-  throw new Error("Connection to Redis failed. Not attempting reconnection.");
+client.addListener("close", function (in_error) {
+  connection_failed = in_error;
+  if (in_error)
+    throw new Error("Connection to Redis failed. Not attempting reconnection.");
 });
 
 client.connect(run_all_tests);
