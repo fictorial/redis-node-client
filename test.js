@@ -15,7 +15,7 @@
 // **clear** these databases at the start of the test runs.  If you want to use
 // a different database number, update TEST_DB_NUMBER* below.
 
-DEBUG = true;
+GLOBAL.DEBUG = true;
 
 var TEST_DB_NUMBER = 15,
     TEST_DB_NUMBER_FOR_MOVE = 14;
@@ -23,8 +23,6 @@ var TEST_DB_NUMBER = 15,
 var sys = require("sys"),
     test = require("mjsunit"),
     redisclient = require("./redisclient");
-
-var client = new redisclient.Client();
 
 var pending_callbacks = 0;
 
@@ -1123,14 +1121,6 @@ function test_error_reply() {
   test.assertEquals(b.length, result[1]);
 }
 
-test_bulk_reply();
-test_multi_bulk_reply();
-test_single_line_reply();
-test_integer_reply();
-test_error_reply();
-
-sys.debug("reply parsers work");
-
 // This is an array of test functions.  Order is important as we don't have
 // fixtures.  We test 'set' before 'get' for instance.
 
@@ -1153,11 +1143,36 @@ var client_tests = [
   test_lastsave, test_flushall, test_shutdown, test_set_number,
 ];
 
-client.connect(function () {
+function run_all_tests() {
+  test_bulk_reply();
+  test_multi_bulk_reply();
+  test_single_line_reply();
+  test_integer_reply();
+  test_error_reply();
+
+  sys.debug("reply parsers work");
+
   client_tests.forEach(function (t) { t() });
   sys.puts('**********\n\nall client tests have been submitted\n\n**********');
+}
+
+var connection_failed = false;
+var client = new redisclient.Client();
+
+client.addListener("connection_failed", function () {
+  connection_failed = true;
+  throw new Error("Connection to Redis failed. Not attempting reconnection.");
+});
+
+client.connect(run_all_tests);
+
+process.addListener("uncaughtException", function (e) {
+  sys.puts(e);
+  process.exit(1);
 });
 
 process.addListener("exit", function (code) {
-  test.assertEquals(0, pending_callbacks);
+  if (!connection_failed)
+    test.assertEquals(0, pending_callbacks);
 });
+

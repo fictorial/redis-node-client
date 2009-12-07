@@ -31,38 +31,59 @@ var multi_bulk_commands = {
 };
 
 var Client = exports.Client = function (port, host) {
+  process.EventEmitter.call(this);
+
   this.host = host || '127.0.0.1';
   this.port = port || 6379;
   this.callbacks = [];
   this.conn = null;
 };
 
+// The client emits "connected" a connection is established, and 
+// emits "connection_failed" when a connection failed in error.
+// Performing any Redis operation on a client with a closed connection
+// will attempt to reopen the connection.
+
+sys.inherits(Client, process.EventEmitter);
+
 // Callback a function after we've ensured we're connected to Redis.
 
-Client.prototype.connect = function (callback_on_connect) {
-  var self = this;
-  if (this.conn && this.conn.readyState === "open") {
-    if (typeof(callback_on_connect) === "function")
-      callback_on_connect();
-  } else {
+Client.prototype.connect = function (callback) {
+  if (!this.conn) {
     this.conn = new process.tcp.Connection();
+  }
+  if (this.conn.readyState === "open" && typeof(callback) === 'function') {
+    callback();
+  } else {
+    var self = this;
+
     this.conn.addListener("connect", function () {
       this.setEncoding("binary");
       this.setTimeout(0);          // try to stay connected.
       this.setNoDelay();
-      if (typeof(callback_on_connect) === "function")
-        callback_on_connect();
+      self.emit("connected");
+      if (typeof(callback) === 'function')
+        callback();
     }); 
+
     this.conn.addListener("receive", function (data) {
       if (!self.buffer)
         self.buffer = "";
       self.buffer += data;
       self.handle_replies();
     });
-    this.conn.addListener("close", function (encountered_error) {
-      if (encountered_error) 
-        throw new Error("redis server up?");
+
+    this.conn.addListener("eof", function () {
+      self.conn.close();
+      self.conn = null;
     });
+
+    this.conn.addListener("close", function (encountered_error) {
+      self.conn = null;
+      if (encountered_error)
+        self.emit("connection_failed");
+    });
+
     this.conn.connect(this.port, this.host);
   }
 };
