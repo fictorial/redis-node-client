@@ -39,8 +39,9 @@ var Client = exports.Client = function (port, host) {
   this.conn = null;
 };
 
-// The client emits "connect" a connection is established, and emits "close"
-// when a connection is closed (passing boolean true if failed in error).
+// The client emits "connect" when a connection is established, and emits
+// "close" when a connection is closed (passing boolean true if failed in
+// error).
 //
 // Note that calling a Redis client method when the connection is closed will
 // automatically attempt to reconnect to Redis first.
