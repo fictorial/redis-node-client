@@ -76,7 +76,7 @@ Client.prototype.connect = function (callback) {
     });
 
     this.conn.addListener("eof", function () {
-      if (this.conn && conn.readyState === "open") {
+      if (self.conn && self.conn.readyState === "open") {
         self.conn.close();
         self.conn = null;
       }
