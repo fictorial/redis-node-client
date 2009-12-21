@@ -92,7 +92,7 @@ Client.prototype.connect = function (callback) {
 };
 
 Client.prototype.close = function () {
-  if (this.conn && conn.readyState === "open") {
+  if (this.conn && this.conn.readyState === "open") {
     this.conn.close();
     this.conn = null;
   }
