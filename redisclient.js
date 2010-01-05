@@ -286,8 +286,10 @@ function format_bulk_command(name, args) {
 
 function format_multi_bulk_command(name, args) {
   var output = '*' + (args.length + 1) + crlf + '$' + name.length + crlf + name + crlf;
-  for (var i = 0; i < args.length; ++i)
-    output += '$' + args[i].length + crlf + args[i] + crlf;
+  for (var i = 0; i < args.length; ++i) {
+    var arg_as_str = args[i].toString();
+    output += '$' + arg_as_str.length + crlf + arg_as_str + crlf;
+  }
   return output;
 }
 

@@ -926,7 +926,7 @@ function test_set_number() {
 
 function test_mset() {
   // set a=b, c=d, e=f
-  expect_true_reply(client.mset('a','b','c','d','e','f'));
+  expect_true_reply(client.mset('a','b','c','d','e',100));
 }
 
 function test_msetnx() {
