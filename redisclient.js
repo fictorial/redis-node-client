@@ -245,13 +245,13 @@ Client.prototype.handle_replies = function () {
     var next_reply_at = result[1];
     this.buffer = this.buffer.substring(next_reply_at);
     var callback = this.callbacks.shift();
-    if (callback.promise) {
-      var result_value = result[0];
+    var result_value = result[0];
+    if( callback.func ) {
       if (is_error) 
-        callback.promise.emitError(result_value);
+        callback.func(true, result_value);
       else {
         result_value = post_process_results(callback.command, result_value);
-        callback.promise.emitSuccess(result_value);
+        callback.func(false, result_value);
       }
     }
   }
@@ -303,9 +303,17 @@ function make_command_sender(name) {
         description += "'" + arguments[a] + "',";
       description = description.substr(0, description.length - 1) + " )";
     }
-    var args = arguments;    
+    var actual_callback = null;
+    var args = arguments;
+    if( typeof( arguments[arguments.length-1] ) === "function" ) {
+      actual_callback = arguments[arguments.length-1];
+      [].pop.call(args);
+    }
+    else {
+        sys.debug( name );
+        sys.debug( typeof( arguments[arguments.length-1] ));
+    }
     var self = this;
-    var promise = new process.Promise();
     this.connect(function () {
       var command;
       if (inline_commands[name]) 
@@ -321,10 +329,9 @@ function make_command_sender(name) {
         write_debug("call:   " + description);
         write_debug("command:" + command);
       }
-      self.callbacks.push({ promise:promise, command:name.toLowerCase() });
+      self.callbacks.push({ command:name.toLowerCase(), func: actual_callback });
       self.conn.write(command);
     });
-    return promise;
   };
 }
 
@@ -375,7 +382,6 @@ function post_process_results(command, result) {
 //   'store_key': 'a_key_name'
 
 Client.prototype.sort = function (key, options) {
-  var promise = new process.Promise();
   var self = this;
   this.connect(function () {
     var opts = [];
@@ -398,10 +404,9 @@ Client.prototype.sort = function (key, options) {
     } 
     var command = 'sort ' + key + ' ' + opts.join(' ') + crlf;
     write_debug("call:    client.sort(...)\ncommand: " + command);
-    self.callbacks.push({ promise:promise, command:'sort' });
+    self.callbacks.push({ command:'sort' });
     self.conn.write(command);
   });
-  return promise;
 }
 
 Client.prototype.quit = function () {
@@ -416,7 +421,7 @@ Client.prototype.quit = function () {
 Client.prototype.make_master = function () {
   var self = this;
   this.connect(function () {
-    self.callbacks.push({ promise:null, command:'slaveof' });
+    self.callbacks.push({ command:'slaveof' });
     self.conn.write('slaveof no one');
   });
 };
