@@ -15,7 +15,7 @@
 // **clear** these databases at the start of the test runs.  If you want to use
 // a different database number, update TEST_DB_NUMBER* below.
 
-GLOBAL.DEBUG = true;
+//GLOBAL.DEBUG = true;
 
 var TEST_DB_NUMBER = 15,
     TEST_DB_NUMBER_FOR_MOVE = 14;
@@ -36,51 +36,53 @@ function was_called_back() {
   sys.puts("pending: " + pending_callbacks);
 }
 
-function expect_true_reply(promise) {
+function expect_true_reply(err, reply) {
   // Redis' protocol returns +OK for some operations.
   // The client converts this into a ECMAScript boolean type with value true.
   
   expect_callback();
-  promise.addCallback(function (reply) {
+  if(!err) {
     test.assertEquals(typeof(reply), 'boolean');
     test.assertTrue(reply);
     was_called_back();
-  });
-  promise.addErrback(function (error) {
+  }
+  else {
     test.assertFalse(error);
-  });
+  }
 }
 
-function expectFalse(promise) {
+function expectFalse(err, reply) {
   expect_callback();
-  promise.addCallback(function (reply) {
+  if(!err) {
     test.assertEquals(typeof(reply), 'boolean');
     test.assertFalse(reply);
     was_called_back();
-  });
-  promise.addErrback(function (error) {
+  }
+  else {
     test.assertFalse(error);
-  });
+  }
 }
 
-function expect_numeric_reply(expected_value, promise) {
+function expect_numeric_reply(expected_value) {
   expect_callback();
-  promise.addCallback(function (reply) {
-    test.assertEquals(typeof(reply), 'number');
-    test.assertEquals(expected_value, reply);
-    was_called_back();
-  });
-  promise.addErrback(function (error) {
-    test.assertFalse(error);
-  });
+  return function( err, reply ) {
+    if(!err) {
+      test.assertEquals(typeof(reply), 'number');
+      test.assertEquals(expected_value, reply);
+      was_called_back();
+    }
+    else {
+      test.assertFalse(error);
+    }
+  }
 }
 
-function expect_zero_as_reply(promise) {
-  return expect_numeric_reply(0, promise);
+function expect_zero_as_reply(err, reply) {
+  return expect_numeric_reply(0)(err, reply);
 }
 
-function expect_one_as_reply(promise) {
-  return expect_numeric_reply(1, promise);
+function expect_one_as_reply(err, reply) {
+  return expect_numeric_reply(1)(err, reply);
 }
 
 function test_auth() {
@@ -94,10 +96,10 @@ function test_auth() {
 // bottom of this file.
 
 function test_select() {
-  expect_true_reply(client.select(TEST_DB_NUMBER_FOR_MOVE));
-  expect_true_reply(client.flushdb());
-  expect_true_reply(client.select(TEST_DB_NUMBER));
-  expect_true_reply(client.flushdb());
+  client.select(TEST_DB_NUMBER_FOR_MOVE, expect_true_reply);
+  client.flushdb(expect_true_reply);
+  client.select(TEST_DB_NUMBER, expect_true_reply);
+  client.flushdb(expect_true_reply);
 }
 
 function test_flushdb() {
@@ -105,24 +107,24 @@ function test_flushdb() {
 }
 
 function test_set() {
-  expect_true_reply(client.set('foo', 'bar'));
-  expect_true_reply(client.set('baz', 'buz'));
+  client.set('foo', 'bar',expect_true_reply)
+  client.set('baz', 'buz',expect_true_reply)
 }
 
 function test_setnx() {
-  expect_zero_as_reply(client.setnx('foo', 'quux'));  // fails when already set
-  expect_one_as_reply(client.setnx('boo', 'apple'));  // no such key already so OK
+  client.setnx('foo', 'quux', expect_zero_as_reply);  // fails when already set
+  client.setnx('boo', 'apple', expect_one_as_reply);  // no such key already so OK
 }
 
 function test_get() {
   expect_callback();
-  client.get('foo').addCallback(function (value) { 
+  client.get('foo', function (err,value) { 
     test.assertEquals(value, 'bar');
     was_called_back(); 
   });
 
   expect_callback();
-  client.get('boo').addCallback(function (value) { 
+  client.get('boo', function (err,value) { 
     test.assertEquals(value, 'apple'); 
     was_called_back();
   });
@@ -130,7 +132,7 @@ function test_get() {
 
 function test_mget() {
   expect_callback();
-  client.mget('foo', 'boo').addCallback(function (values) { 
+  client.mget('foo', 'boo', function (err,values) { 
     test.assertEquals('bar', values[0]);
     test.assertEquals('apple', values[1]);
     was_called_back();
@@ -139,7 +141,7 @@ function test_mget() {
 
 function test_getset() {
   expect_callback();
-  client.getset('foo', 'fuzz').addCallback(function (previous_value) {
+  client.getset('foo', 'fuzz', function (err, previous_value) {
     test.assertEquals('bar', previous_value);
     was_called_back();
   });
@@ -147,9 +149,9 @@ function test_getset() {
 
 function test_set_and_get_multibyte() {
   var test_value = unescape('%F6');
-  expect_true_reply(client.set('unicode', test_value));
+  client.set('unicode', test_value,expect_true_reply)
   expect_callback();
-  client.get('unicode').addCallback(function (value) { 
+  client.get('unicode', function (err,value) { 
     test.assertEquals(test_value, value);
     was_called_back(); 
   });
@@ -157,7 +159,7 @@ function test_set_and_get_multibyte() {
 
 function test_info() {
   expect_callback();
-  client.info().addCallback(function (info) {
+  client.info( function (err,info) {
     test.assertInstanceof(info, Object);
     test.assertTrue(info.hasOwnProperty('redis_version'));
     test.assertTrue(info.hasOwnProperty('connected_clients'));
@@ -169,41 +171,41 @@ function test_info() {
 }
 
 function test_incr() {
-  expect_numeric_reply(1, client.incr('counter'));
-  expect_numeric_reply(2, client.incr('counter'));
+  client.incr('counter',expect_numeric_reply(1))
+  client.incr('counter',expect_numeric_reply(2))
 }
 
 function test_incrby() {
-  expect_numeric_reply(4, client.incrby('counter', '2'));
-  expect_numeric_reply(3, client.incrby('counter', '-1'));
+  client.incrby('counter', '2',expect_numeric_reply(4))
+  client.incrby('counter', '-1',expect_numeric_reply(3))
 }
 
 function test_decr() {
-  expect_numeric_reply(2, client.decr('counter'));
-  expect_numeric_reply(1, client.decr('counter'));
+  client.decr('counter',expect_numeric_reply(2))
+  client.decr('counter',expect_numeric_reply(1))
 }
 
 function test_decrby() {
-  expect_numeric_reply(0,  client.decrby('counter', '1'));
-  expect_numeric_reply(-2, client.decrby('counter', '2'));
-  expect_numeric_reply(1,  client.decrby('counter', '-3'));
+  client.decrby('counter', '1',expect_numeric_reply(0))
+  client.decrby('counter', '2',expect_numeric_reply(-2))
+  client.decrby('counter', '-3',expect_numeric_reply(1))
 }
 
 function test_exists() {
-  expect_one_as_reply(client.exists('counter'));
-  expect_zero_as_reply(client.exists('counter:asdfasdf'));
+  client.exists('counter',expect_one_as_reply)
+  client.exists('counter:asdfasdf',expect_zero_as_reply)
 }
 
 function test_del() {
-  expect_one_as_reply(client.del('counter'));
-  expect_zero_as_reply(client.exists('counter'));
+  client.del('counter',expect_one_as_reply)
+  client.exists('counter',expect_zero_as_reply)
 }
 
 function test_keys() {
-  expect_true_reply(client.set('foo2', 'some value'));
+  client.set('foo2', 'some value',expect_true_reply)
 
   expect_callback();
-  client.keys('foo*').addCallback(function (keys) {
+  client.keys('foo*', function (err,keys) {
     test.assertEquals(keys.length, 2);
     test.assertEquals(['foo','foo2'], keys.sort());
     was_called_back();
@@ -211,7 +213,7 @@ function test_keys() {
 
   // At this point we have foo, baz, boo, and foo2, unicode
   expect_callback();
-  client.keys('*').addCallback(function (keys) {
+  client.keys('*', function (err,keys) {
     test.assertEquals(keys.length, 5);
     test.assertEquals(['baz','boo','foo','foo2','unicode'], keys.sort());
     was_called_back();
@@ -219,7 +221,7 @@ function test_keys() {
 
   // foo and boo
   expect_callback();
-  client.keys('?oo').addCallback(function (keys) {
+  client.keys('?oo', function (err,keys) {
     test.assertEquals(keys.length, 2);
     test.assertEquals(['boo','foo'], keys.sort());
     was_called_back();
@@ -229,30 +231,30 @@ function test_keys() {
 function test_randomkey() {
   // At this point we have foo, baz, boo, foo2, unicode.
   expect_callback();
-  client.randomkey().addCallback(function (someKey) {
+  client.randomkey(function (err,someKey) {
     test.assertTrue(/^(foo|foo2|boo|baz|unicode)$/.test(someKey));
     was_called_back();
   });
 }
 
 function test_rename() {
-  expect_true_reply(client.rename('foo2', 'zoo')); 
-  expect_zero_as_reply(client.exists('foo2'));
-  expect_one_as_reply(client.exists('zoo'));
+  client.rename('foo2', 'zoo',expect_true_reply) 
+  client.exists('foo2',expect_zero_as_reply)
+  client.exists('zoo',expect_one_as_reply)
 }
 
 function test_renamenx() {
-  expect_zero_as_reply(client.renamenx('zoo', 'boo'));  // boo already exists
-  expect_one_as_reply(client.exists('zoo'));            // was not renamed
-  expect_one_as_reply(client.exists('boo'));            // was not touched
-  expect_one_as_reply(client.renamenx('zoo', 'too'));   // too did not exist... OK
-  expect_zero_as_reply(client.exists('zoo'));           // was renamed
-  expect_one_as_reply(client.exists('too'));            // was created
+  client.renamenx('zoo', 'boo',expect_zero_as_reply)  // boo already exists
+  client.exists('zoo',expect_one_as_reply)            // was not renamed
+  client.exists('boo',expect_one_as_reply)            // was not touched
+  client.renamenx('zoo', 'too',expect_one_as_reply)   // too did not exist... OK
+  client.exists('zoo',expect_zero_as_reply)           // was renamed
+  client.exists('too',expect_one_as_reply)            // was created
 }
 
 function test_dbsize() {
   expect_callback();
-  client.dbsize().addCallback(function (value) { 
+  client.dbsize(function (err,value) { 
     test.assertEquals(5, value); 
     was_called_back();
   });
@@ -260,10 +262,10 @@ function test_dbsize() {
 
 function test_expire() {
   // set 'too' to expire in 2 seconds
-  expect_one_as_reply(client.expire('too', 2));
+  client.expire('too', 2,expect_one_as_reply)
 
   // subsequent expirations cannot be set.
-  expect_zero_as_reply(client.expire('too', 2));
+  client.expire('too', 2,expect_zero_as_reply)
 
   setTimeout(function () {
     sys.puts("\nWaiting a few seconds for key expirations...\n");
@@ -271,9 +273,11 @@ function test_expire() {
 
   // check that in 4 seconds that it's gone 
   setTimeout(function () { 
-    var promise = client.exists('too');
-    expect_zero_as_reply(promise);
-    promise.addCallback(function () {
+          sys.debug("Timed out");
+    client.exists('too', function(err, reply) {
+        sys.debug("Called too exists");
+        sys.debug("pending:" + pending_callbacks);
+      expect_zero_as_reply(err, reply);
       if (pending_callbacks === 0) {
         sys.puts("\n\nall tests have completed");
         process.exit(0);
@@ -285,37 +289,37 @@ function test_expire() {
 function test_ttl() {
   // foo is not set to expire
   expect_callback();
-  client.ttl('foo').addCallback(function (value) { 
+  client.ttl('foo', function (err,value) { 
     test.assertEquals(-1, value); 
     was_called_back(); 
   });
 
   // 'too' *is* set to expire
   expect_callback();
-  client.ttl('too').addCallback(function (value) { 
+  client.ttl('too', function (err,value) { 
     test.assertTrue(value > 0);
     was_called_back();
   });
 }
 
 function test_rpush() {
-  expect_zero_as_reply(client.exists('list0'));
-  expect_true_reply(client.rpush('list0', 'list0value0'));
-  expect_one_as_reply(client.exists('list0'));
+  client.exists('list0',expect_zero_as_reply)
+  client.rpush('list0', 'list0value0',expect_true_reply)
+  client.exists('list0',expect_one_as_reply)
 }
 
 function test_lpush() {
-  expect_zero_as_reply(client.exists('list1'));
-  expect_true_reply(client.lpush('list1', 'list1value0'));
-  expect_one_as_reply(client.exists('list1'));
+  client.exists('list1',expect_zero_as_reply)
+  client.lpush('list1', 'list1value0',expect_true_reply)
+  client.exists('list1',expect_one_as_reply)
 }
 
 function test_llen() {
-  expect_one_as_reply(client.llen('list0'));
-  expect_true_reply(client.rpush('list0', 'list0value1'));
+  client.llen('list0',expect_one_as_reply)
+  client.rpush('list0', 'list0value1',expect_true_reply)
 
   expect_callback();
-  client.llen('list0').addCallback(function (len) { 
+  client.llen('list0', function (err,len) { 
     test.assertEquals(2, len);
     was_called_back();
   });
@@ -323,7 +327,7 @@ function test_llen() {
 
 function test_lrange() {
   expect_callback();
-  client.lrange('list0', 0, -1).addCallback(function (values) {
+  client.lrange('list0', 0, -1, function (err,values) {
     test.assertEquals(2, values.length);
     test.assertEquals('list0value0', values[0]);
     test.assertEquals('list0value1', values[1]);
@@ -331,14 +335,14 @@ function test_lrange() {
   });
 
   expect_callback();
-  client.lrange('list0', 0, 0).addCallback(function (values) {
+  client.lrange('list0', 0, 0, function (err,values) {
     test.assertEquals(1, values.length);
     test.assertEquals('list0value0', values[0]);
     was_called_back();
   });
 
   expect_callback();
-  client.lrange('list0', -1, -1).addCallback(function (values) {
+  client.lrange('list0', -1, -1, function (err,values) {
     test.assertEquals(1, values.length);
     test.assertEquals('list0value1', values[0]);
     was_called_back();
@@ -348,24 +352,24 @@ function test_lrange() {
 function test_ltrim() {
   // trim list so it just contains the first 2 elements
 
-  expect_true_reply(client.rpush('list0', 'list0value2'));
+  client.rpush('list0', 'list0value2',expect_true_reply)
 
   expect_callback();
-  client.llen('list0').addCallback(function (len) { 
+  client.llen('list0', function (err,len) { 
     test.assertEquals(3, len);
     was_called_back();
   });
 
-  expect_true_reply(client.ltrim('list0', 0, 1));
+  client.ltrim('list0', 0, 1,expect_true_reply)
 
   expect_callback();
-  client.llen('list0').addCallback(function (len) { 
+  client.llen('list0', function (err,len) { 
     test.assertEquals(2, len);
     was_called_back();
   });
 
   expect_callback();
-  client.lrange('list0', 0, -1).addCallback(function (values) {
+  client.lrange('list0', 0, -1, function (err,values) {
     test.assertEquals(2, values.length);
     test.assertEquals('list0value0', values[0]);
     test.assertEquals('list0value1', values[1]);
@@ -375,30 +379,30 @@ function test_ltrim() {
 
 function test_lindex() {
   expect_callback();
-  client.lindex('list0', 0).addCallback(function (value) { 
+  client.lindex('list0', 0, function (err,value) { 
     test.assertEquals('list0value0', value);
     was_called_back();
   });
 
   expect_callback();
-  client.lindex('list0', 1).addCallback(function (value) { 
+  client.lindex('list0', 1, function (err,value) { 
     test.assertEquals('list0value1', value);
     was_called_back();
   });
 
   // out of range => null 
   expect_callback();
-  client.lindex('list0', 2).addCallback(function (value) { 
+  client.lindex('list0', 2, function (err,value) { 
     test.assertEquals(null, value);
     was_called_back();
   });
 }
 
 function test_lset() {
-  expect_true_reply(client.lset('list0', 0, 'LIST0VALUE0'));  
+  client.lset('list0', 0, 'LIST0VALUE0',expect_true_reply)  
 
   expect_callback();
-  client.lrange('list0', 0, 0).addCallback(function (values) {
+  client.lrange('list0', 0, 0, function (err,values) {
     test.assertEquals(1, values.length);
     test.assertEquals('LIST0VALUE0', values[0]);
     was_called_back();
@@ -408,26 +412,26 @@ function test_lset() {
 }
 
 function test_lrem() {
-  expect_true_reply(client.lpush('list0', 'ABC')); 
-  expect_true_reply(client.lpush('list0', 'DEF')); 
-  expect_true_reply(client.lpush('list0', 'ABC')); 
+  client.lpush('list0', 'ABC',expect_true_reply) 
+  client.lpush('list0', 'DEF',expect_true_reply) 
+  client.lpush('list0', 'ABC',expect_true_reply) 
 
   // FYI list0 is [ ABC, DEF, ABC, LIST0VALUE0, list0value1 ] at this point
 
-  expect_one_as_reply(client.lrem('list0', 1, 'ABC'));
+  client.lrem('list0', 1, 'ABC',expect_one_as_reply)
 }
 
 function test_lpop() {
   // FYI list0 is [ DEF, ABC, LIST0VALUE0, list0value1 ] at this point
 
   expect_callback();
-  client.lpop('list0').addCallback(function (value) { 
+  client.lpop('list0', function (err,value) { 
     test.assertEquals('DEF', value);
     was_called_back();
   });
 
   expect_callback();
-  client.lpop('list0').addCallback(function (value) { 
+  client.lpop('list0', function (err,value) { 
     test.assertEquals('ABC', value);
     was_called_back();
   });
@@ -437,13 +441,13 @@ function test_rpop() {
   // FYI list0 is [ LIST0VALUE0, list0value1 ] at this point
   
   expect_callback();
-  client.rpop('list0').addCallback(function (value) { 
+  client.rpop('list0', function (err,value) { 
     test.assertEquals('list0value1', value);
     was_called_back();
   });
 
   expect_callback();
-  client.rpop('list0').addCallback(function (value) { 
+  client.rpop('list0', function (err,value) { 
     test.assertEquals('LIST0VALUE0', value);
     was_called_back();
   });
@@ -451,31 +455,31 @@ function test_rpop() {
   // list0 is now empty
 
   expect_callback();
-  client.llen('list0').addCallback(function (len) { 
+  client.llen('list0', function (err,len) { 
     test.assertEquals(0, len);
     was_called_back();
   });
 }
 
 function test_rpoplpush() {
-  expect_zero_as_reply(client.exists('rpoplpush_source'));
-  expect_zero_as_reply(client.exists('rpoplpush_target'));
+  client.exists('rpoplpush_source',expect_zero_as_reply)
+  client.exists('rpoplpush_target',expect_zero_as_reply)
 
-  expect_true_reply(client.rpush('rpoplpush_source', 'ABC')); 
-  expect_true_reply(client.rpush('rpoplpush_source', 'DEF')); 
+  client.rpush('rpoplpush_source', 'ABC',expect_true_reply) 
+  client.rpush('rpoplpush_source', 'DEF',expect_true_reply) 
 
   // rpoplpush_source = [ 'ABC', 'DEF' ]
   // rpoplpush_target = [ ]
 
   expect_callback();
-  client.rpoplpush('rpoplpush_source', 'rpoplpush_target').addCallback(function (value) { 
+  client.rpoplpush('rpoplpush_source', 'rpoplpush_target', function (err,value) { 
     was_called_back();
     test.assertEquals('DEF', value);
 
     // rpoplpush_source = [ 'ABC' ]
 
     expect_callback();
-    client.lrange('rpoplpush_source', 0, -1).addCallback(function (values) {
+    client.lrange('rpoplpush_source', 0, -1, function (err,values) {
       test.assertEquals(['ABC'], values);
       was_called_back();
     });
@@ -483,7 +487,7 @@ function test_rpoplpush() {
     // rpoplpush_target = [ 'DEF' ]
 
     expect_callback();
-    client.lrange('rpoplpush_target', 0, -1).addCallback(function (values) {
+    client.lrange('rpoplpush_target', 0, -1, function (err,values) {
       test.assertEquals(['DEF'], values);
       was_called_back();
     });
@@ -492,56 +496,56 @@ function test_rpoplpush() {
 
 function test_sadd() {
   // create set0
-  expect_one_as_reply(client.sadd('set0', 'member0'));  
+  client.sadd('set0', 'member0',expect_one_as_reply)  
 
   // fails since it's already a member
-  expect_zero_as_reply(client.sadd('set0', 'member0'));  
+  client.sadd('set0', 'member0',expect_zero_as_reply)  
 }
 
 function test_sismember() {
-  expect_one_as_reply(client.sismember('set0', 'member0'));  
-  expect_zero_as_reply(client.sismember('set0', 'member1'));  
+  client.sismember('set0', 'member0',expect_one_as_reply)  
+  client.sismember('set0', 'member1',expect_zero_as_reply)  
 }
 
 function test_scard() {
-  expect_one_as_reply(client.scard('set0')); 
-  expect_one_as_reply(client.sadd('set0', 'member1'));
+  client.scard('set0',expect_one_as_reply) 
+  client.sadd('set0', 'member1',expect_one_as_reply)
 
   expect_callback();  
-  client.scard('set0').addCallback(function (cardinality) { 
+  client.scard('set0', function (err,cardinality) { 
     test.assertEquals(2, cardinality);
     was_called_back();
   }); 
 }
 
 function test_srem() {
-  expect_zero_as_reply(client.srem('set0', 'foobar')); 
-  expect_one_as_reply(client.srem('set0', 'member1')); 
-  expect_one_as_reply(client.scard('set0'));             // just member0 again
+  client.srem('set0', 'foobar',expect_zero_as_reply) 
+  client.srem('set0', 'member1',expect_one_as_reply) 
+  client.scard('set0',expect_one_as_reply)             // just member0 again
 }
 
 function test_spop() {
-  expect_one_as_reply(client.sadd('zzz', 'member0'));
-  expect_one_as_reply(client.scard('zzz'));
+  client.sadd('zzz', 'member0',expect_one_as_reply)
+  client.scard('zzz',expect_one_as_reply)
 
   expect_callback();  
-  client.spop('zzz').addCallback(function (value) {    
+  client.spop('zzz', function (err,value) {    
     was_called_back();
     test.assertEquals(value, 'member0');
-    expect_zero_as_reply(client.scard('zzz'));
+    client.scard('zzz',expect_zero_as_reply)
   });
 }
 
 function test_sdiff() {
-  expect_one_as_reply(client.sadd('bsh', 'x'));
-  expect_one_as_reply(client.sadd('bsh', 'a'));
-  expect_one_as_reply(client.sadd('bsh', 'b'));
-  expect_one_as_reply(client.sadd('bsh', 'c'));
-  expect_one_as_reply(client.sadd('hah', 'c'));
-  expect_one_as_reply(client.sadd('hac', 'a'));
-  expect_one_as_reply(client.sadd('hac', 'd'));
+  client.sadd('bsh', 'x',expect_one_as_reply)
+  client.sadd('bsh', 'a',expect_one_as_reply)
+  client.sadd('bsh', 'b',expect_one_as_reply)
+  client.sadd('bsh', 'c',expect_one_as_reply)
+  client.sadd('hah', 'c',expect_one_as_reply)
+  client.sadd('hac', 'a',expect_one_as_reply)
+  client.sadd('hac', 'd',expect_one_as_reply)
   expect_callback();  
-  client.sdiff('bsh', 'hah', 'hac').addCallback(function (values) {    
+  client.sdiff('bsh', 'hah', 'hac', function (err,values) {    
     was_called_back();
     values.sort();
     test.assertEquals(values.length, 2);
@@ -551,19 +555,19 @@ function test_sdiff() {
 }
 
 function test_sdiffstore() {
-  expect_one_as_reply(client.sadd('bsh2', 'x'));  
-  expect_one_as_reply(client.sadd('bsh2', 'a'));
-  expect_one_as_reply(client.sadd('bsh2', 'b'));
-  expect_one_as_reply(client.sadd('bsh2', 'c'));
-  expect_one_as_reply(client.sadd('hah2', 'c'));
-  expect_one_as_reply(client.sadd('hac2', 'a'));
-  expect_one_as_reply(client.sadd('hac2', 'd'));
+  client.sadd('bsh2', 'x',expect_one_as_reply)  
+  client.sadd('bsh2', 'a',expect_one_as_reply)
+  client.sadd('bsh2', 'b',expect_one_as_reply)
+  client.sadd('bsh2', 'c',expect_one_as_reply)
+  client.sadd('hah2', 'c',expect_one_as_reply)
+  client.sadd('hac2', 'a',expect_one_as_reply)
+  client.sadd('hac2', 'd',expect_one_as_reply)
 
   // NB: returns the number of elements in the dstkey (here crunk2)
 
-  expect_numeric_reply(2, client.sdiffstore('crunk2', 'bsh2', 'hah2', 'hac2'));
+  client.sdiffstore('crunk2', 'bsh2', 'hah2', 'hac2',expect_numeric_reply(2))
   expect_callback();
-  client.smembers('crunk2').addCallback(function (members) {     
+  client.smembers('crunk2', function (err,members) {     
     was_called_back();
     members.sort();
     test.assertEquals(members.length, 2);
@@ -574,16 +578,16 @@ function test_sdiffstore() {
 
 function test_smembers() {
   expect_callback();
-  client.smembers('set0').addCallback(function (members) { 
+  client.smembers('set0', function (err,members) { 
     test.assertEquals(1, members.length);
     test.assertEquals('member0', members[0]);
     was_called_back();
   });
 
-  expect_one_as_reply(client.sadd('set0', 'member1'));  
+  client.sadd('set0', 'member1',expect_one_as_reply)  
 
   expect_callback();
-  client.smembers('set0').addCallback(function (members) { 
+  client.smembers('set0', function (err,members) { 
     test.assertEquals(2, members.length);
     test.assertEquals(['member0','member1'], members.sort());
     was_called_back();
@@ -592,50 +596,50 @@ function test_smembers() {
   // doesn't exist => null
 
   expect_callback();
-  client.smembers('set1').addCallback(function (members) { 
+  client.smembers('set1', function (err,members) { 
     test.assertEquals(null, members);
     was_called_back();
   });
 }
 
 function test_smove() {
-  expect_one_as_reply(client.smove('set0', 'set1', 'member1'));
-  expect_zero_as_reply(client.sismember('set0', 'member1'));  
-  expect_one_as_reply(client.sismember('set1', 'member1'));  
+  client.smove('set0', 'set1', 'member1',expect_one_as_reply)
+  client.sismember('set0', 'member1',expect_zero_as_reply)  
+  client.sismember('set1', 'member1',expect_one_as_reply)  
 
   // member is now moved so => 0
-  expect_zero_as_reply(client.smove('set0', 'set1', 'member1'));
+  client.smove('set0', 'set1', 'member1',expect_zero_as_reply)
 }
 
 function test_sinter() {
-  expect_one_as_reply(client.sadd('sa', 'a'));
-  expect_one_as_reply(client.sadd('sa', 'b'));
-  expect_one_as_reply(client.sadd('sa', 'c'));
+  client.sadd('sa', 'a',expect_one_as_reply)
+  client.sadd('sa', 'b',expect_one_as_reply)
+  client.sadd('sa', 'c',expect_one_as_reply)
   
-  expect_one_as_reply(client.sadd('sb', 'b'));
-  expect_one_as_reply(client.sadd('sb', 'c'));
-  expect_one_as_reply(client.sadd('sb', 'd'));
+  client.sadd('sb', 'b',expect_one_as_reply)
+  client.sadd('sb', 'c',expect_one_as_reply)
+  client.sadd('sb', 'd',expect_one_as_reply)
   
-  expect_one_as_reply(client.sadd('sc', 'c'));
-  expect_one_as_reply(client.sadd('sc', 'd'));
-  expect_one_as_reply(client.sadd('sc', 'e'));
+  client.sadd('sc', 'c',expect_one_as_reply)
+  client.sadd('sc', 'd',expect_one_as_reply)
+  client.sadd('sc', 'e',expect_one_as_reply)
 
   expect_callback();
-  client.sinter('sa', 'sb').addCallback(function (intersection) {
+  client.sinter('sa', 'sb', function (err,intersection) {
     test.assertEquals(2, intersection.length);
     test.assertEquals(['b','c'], intersection.sort());
     was_called_back();
   });
 
   expect_callback();
-  client.sinter('sb', 'sc').addCallback(function (intersection) {
+  client.sinter('sb', 'sc', function (err,intersection) {
     test.assertEquals(2, intersection.length);
     test.assertEquals(['c','d'], intersection.sort());
     was_called_back();
   });
 
   expect_callback();
-  client.sinter('sa', 'sc').addCallback(function (intersection) {
+  client.sinter('sa', 'sc', function (err,intersection) {
     test.assertEquals(1, intersection.length);
     test.assertEquals('c', intersection[0]);
     was_called_back();
@@ -644,7 +648,7 @@ function test_sinter() {
   // 3-way
 
   expect_callback();
-  client.sinter('sa', 'sb', 'sc').addCallback(function (intersection) {
+  client.sinter('sa', 'sb', 'sc', function (err,intersection) {
     test.assertEquals(1, intersection.length);
     test.assertEquals('c', intersection[0]);
     was_called_back();
@@ -652,10 +656,10 @@ function test_sinter() {
 }
 
 function test_sinterstore() {
-  expect_one_as_reply(client.sinterstore('inter-dst', 'sa', 'sb', 'sc'));
+  client.sinterstore('inter-dst', 'sa', 'sb', 'sc',expect_one_as_reply)
 
   expect_callback();
-  client.smembers('inter-dst').addCallback(function (members) { 
+  client.smembers('inter-dst', function (err,members) { 
     test.assertEquals(1, members.length);
     test.assertEquals('c', members[0]);
     was_called_back();
@@ -664,7 +668,7 @@ function test_sinterstore() {
 
 function test_sunion() {
   expect_callback();
-  client.sunion('sa', 'sb', 'sc').addCallback(function (union) {
+  client.sunion('sa', 'sb', 'sc', function (err,union) {
     test.assertEquals(['a','b','c','d','e'], union.sort());
     was_called_back();
   });
@@ -672,12 +676,12 @@ function test_sunion() {
 
 function test_sunionstore() {
   expect_callback();
-  client.sunionstore('union-dst', 'sa', 'sb', 'sc').addCallback(function (cardinality) { 
+  client.sunionstore('union-dst', 'sa', 'sb', 'sc', function (err,cardinality) { 
     test.assertEquals(5, cardinality);
     was_called_back();
   });
   expect_callback();
-  client.smembers('union-dst').addCallback(function (members) { 
+  client.smembers('union-dst', function (err,members) { 
     test.assertEquals(5, members.length);
     test.assertEquals(['a','b','c','d','e'], members.sort());
     was_called_back();
@@ -686,33 +690,33 @@ function test_sunionstore() {
 
 function test_type() {
   expect_callback();
-  client.type('union-dst').addCallback(function (type) { 
+  client.type('union-dst', function (err,type) { 
     test.assertEquals('set', type);
     was_called_back();
   });
   expect_callback();
-  client.type('list0').addCallback(function (type) { 
+  client.type('list0', function (err,type) { 
     test.assertEquals('list', type);
     was_called_back();
   });
   expect_callback();
-  client.type('foo').addCallback(function (type) { 
+  client.type('foo', function (err,type) { 
     test.assertEquals('string', type);
     was_called_back();
   });
   expect_callback();
-  client.type('xxx').addCallback(function (type) { 
+  client.type('xxx', function (err,type) { 
     test.assertEquals('none', type);
     was_called_back();
   });
 }
 
 function test_move() {
-  expect_one_as_reply(client.move('list0', TEST_DB_NUMBER_FOR_MOVE));
-  expect_true_reply(client.select(TEST_DB_NUMBER_FOR_MOVE));
-  expect_one_as_reply(client.exists('list0'));
-  expect_true_reply(client.select(TEST_DB_NUMBER));
-  expect_zero_as_reply(client.exists('list0'));
+  client.move('list0', TEST_DB_NUMBER_FOR_MOVE,expect_one_as_reply)
+  client.select(TEST_DB_NUMBER_FOR_MOVE,expect_true_reply)
+  client.exists('list0',expect_one_as_reply)
+  client.select(TEST_DB_NUMBER,expect_true_reply)
+  client.exists('list0',expect_zero_as_reply)
 }
 
 // TODO sort with STORE option.
@@ -786,30 +790,30 @@ function test_sort() {
   client.del('x');  // just to be safe
   client.del('y');  // just to be safe
   
-  expect_true_reply(client.rpush('y', 'd'));
-  expect_true_reply(client.rpush('y', 'b'));
-  expect_true_reply(client.rpush('y', 'a'));
-  expect_true_reply(client.rpush('y', 'c'));
+  client.rpush('y', 'd',expect_true_reply)
+  client.rpush('y', 'b',expect_true_reply)
+  client.rpush('y', 'a',expect_true_reply)
+  client.rpush('y', 'c',expect_true_reply)
 
-  expect_true_reply(client.rpush('x', '3'));
-  expect_true_reply(client.rpush('x', '9'));
-  expect_true_reply(client.rpush('x', '2'));
-  expect_true_reply(client.rpush('x', '4'));
+  client.rpush('x', '3',expect_true_reply)
+  client.rpush('x', '9',expect_true_reply)
+  client.rpush('x', '2',expect_true_reply)
+  client.rpush('x', '4',expect_true_reply)
 
-  expect_true_reply(client.set('w_3', '4'));
-  expect_true_reply(client.set('w_9', '5'));
-  expect_true_reply(client.set('w_2', '12'));
-  expect_true_reply(client.set('w_4', '6'));
+  client.set('w_3', '4',expect_true_reply)
+  client.set('w_9', '5',expect_true_reply)
+  client.set('w_2', '12',expect_true_reply)
+  client.set('w_4', '6',expect_true_reply)
   
-  expect_true_reply(client.set('o_2', 'buz'));
-  expect_true_reply(client.set('o_3', 'foo'));
-  expect_true_reply(client.set('o_4', 'baz'));
-  expect_true_reply(client.set('o_9', 'bar'));
+  client.set('o_2', 'buz',expect_true_reply)
+  client.set('o_3', 'foo',expect_true_reply)
+  client.set('o_4', 'baz',expect_true_reply)
+  client.set('o_9', 'bar',expect_true_reply)
   
-  expect_true_reply(client.set('p_2', 'qux'));
-  expect_true_reply(client.set('p_3', 'bux'));
-  expect_true_reply(client.set('p_4', 'lux'));
-  expect_true_reply(client.set('p_9', 'tux'));
+  client.set('p_2', 'qux',expect_true_reply)
+  client.set('p_3', 'bux',expect_true_reply)
+  client.set('p_4', 'lux',expect_true_reply)
+  client.set('p_9', 'tux',expect_true_reply)
 
   // Now the data has been setup, we can test.
 
@@ -821,14 +825,14 @@ function test_sort() {
 
   expect_callback();
   var opts = { lexicographically:true, ascending:true };
-  client.sort('y', opts).addCallback(function (sorted) { 
+  client.sort('y', opts, function (err,sorted) { 
     test.assertEquals(['a','b','c','d'], sorted);
     was_called_back();
   });
 
   expect_callback();
   opts = { lexicographically:true, ascending:false };
-  client.sort('y', opts).addCallback(function (sorted) {
+  client.sort('y', opts, function (err,sorted) {
     test.assertEquals(['d','c','b','a'], sorted);
     was_called_back();
   });
@@ -838,14 +842,14 @@ function test_sort() {
 
   expect_callback();
   opts = { ascending:true };
-  client.sort('x', opts).addCallback(function (sorted) {
+  client.sort('x', opts, function (err,sorted) {
     test.assertEquals([2,3,4,9], sorted);
     was_called_back();
   });
 
   expect_callback();
   opts = { ascending:false };
-  client.sort('x', opts).addCallback(function (sorted) {
+  client.sort('x', opts, function (err,sorted) {
     test.assertEquals([9,4,3,2], sorted);
     was_called_back();
   });
@@ -854,7 +858,7 @@ function test_sort() {
   
   expect_callback();
   opts = { ascending:true, by_pattern:'w_*' };
-  client.sort('x', opts).addCallback(function (sorted) {
+  client.sort('x', opts, function (err,sorted) {
     test.assertEquals([3,9,4,2], sorted);
     was_called_back();
   });
@@ -863,7 +867,7 @@ function test_sort() {
 
   expect_callback();
   opts = { ascending:true, by_pattern:'w_*', get_patterns:['o_*'] };
-  client.sort('x', opts).addCallback(function (sorted) {
+  client.sort('x', opts, function (err,sorted) {
     test.assertEquals(['foo','bar','baz','buz'], sorted);
     was_called_back();
   });
@@ -872,7 +876,7 @@ function test_sort() {
 
   expect_callback();
   opts = { ascending:true, by_pattern:'w_*', get_patterns:['o_*', 'p_*'] };
-  client.sort('x', opts).addCallback(function (sorted) {
+  client.sort('x', opts, function (err,sorted) {
     test.assertEquals(['foo','bux','bar','tux','baz','lux','buz','qux'], sorted);
     was_called_back();
   });
@@ -884,10 +888,10 @@ function test_sort() {
   expect_callback();
   opts = { ascending:true, by_pattern:'w_*', 
            get_patterns:['o_*', 'p_*'], store_key:'bacon' };
-  client.sort('x', opts).addCallback(function () {
+  client.sort('x', opts, function (err) {
     was_called_back();
     expect_callback();
-    client.lrange('bacon', 0, -1).addCallback(function (values) {
+    client.lrange('bacon', 0, -1, function (err,values) {
       test.assertEquals(['foo','bux','bar','tux','baz','lux','buz','qux'], values);
       was_called_back();
     });
@@ -895,16 +899,16 @@ function test_sort() {
 }
 
 function test_save() {
-  expect_true_reply(client.save());
+  client.save(expect_true_reply)
 }
 
 function test_bgsave() {
-//  expect_true_reply(client.bgsave());
+//  client.bgsave(,expect_true_reply)
 }
 
 function test_lastsave() {
   expect_callback();
-  client.lastsave().addCallback(function (value) { 
+  client.lastsave( function (err,value) { 
     test.assertEquals(typeof(value), 'number');
     test.assertTrue(value > 0);
     was_called_back();
@@ -920,56 +924,56 @@ function test_shutdown() {
 }
 
 function test_set_number() {
-  expect_true_reply(client.set('ggg', '123'));
-  expect_true_reply(client.set('ggg', 123));
+  client.set('ggg', '123',expect_true_reply)
+  client.set('ggg', 123,expect_true_reply)
 }
 
 function test_mset() {
   // set a=b, c=d, e=f
-  expect_true_reply(client.mset('a','b','c','d','e',100));
+  client.mset('a','b','c','d','e',100,expect_true_reply)
 }
 
 function test_msetnx() {
   // should fail since key 'a' as we already set it
-  expect_zero_as_reply(client.msetnx('g', 'h', 'a', 'i'));
+  client.msetnx('g', 'h', 'a', 'i',expect_zero_as_reply)
   // should pass as key 'g' was NOT set in prev. command
   // since it failed due to key 'a' already existing.
-  expect_one_as_reply(client.msetnx('g', 'h', 'i', 'j'));
+  client.msetnx('g', 'h', 'i', 'j',expect_one_as_reply)
 }
 
 function test_zadd() {
-  expect_one_as_reply(client.zadd('z0',100,'m0'));
+  client.zadd('z0',100,'m0',expect_one_as_reply)
   // Already added m0; just update the score to 50:
-  expect_zero_as_reply(client.zadd('z0',50,'m0'));
+  client.zadd('z0',50,'m0',expect_zero_as_reply)
 }
 
 function test_zrem() {
-  expect_one_as_reply(client.zrem('z0','m0'));
-  expect_zero_as_reply(client.zrem('z0','m0'));
+  client.zrem('z0','m0',expect_one_as_reply)
+  client.zrem('z0','m0',expect_zero_as_reply)
 }
 
 function test_zcard() {
-  expect_zero_as_reply(client.zcard('zzzzzz')); // doesn't exist.
-  expect_one_as_reply(client.zadd('z0',100,'m0'));
-  expect_numeric_reply(1, client.zcard('z0'));
-  expect_one_as_reply(client.zadd('z0',200,'m1'));
-  expect_numeric_reply(2, client.zcard('z0'));
+  client.zcard('zzzzzz',expect_zero_as_reply) // doesn't exist.
+  client.zadd('z0',100,'m0',expect_one_as_reply)
+  client.zcard('z0',expect_numeric_reply(1))
+  client.zadd('z0',200,'m1',expect_one_as_reply)
+  client.zcard('z0',expect_numeric_reply(2))
 }
 
 function test_zscore() {
-  expect_numeric_reply(100,client.zscore('z0','m0'));
-  expect_numeric_reply(200,client.zscore('z0','m1'));
+  client.zscore('z0','m0',expect_numeric_reply(100))
+  client.zscore('z0','m1',expect_numeric_reply(200))
   expect_callback();
-  client.zscore('z0','zzzzzzz').addCallback(function (score) { 
+  client.zscore('z0','zzzzzzz', function (err,score) { 
     test.assertTrue(isNaN(score));
     was_called_back();
   });
 }
 
 function test_zrange() {
-  expect_one_as_reply(client.zadd('z0',300,'m2'));
+  client.zadd('z0',300,'m2',expect_one_as_reply)
   expect_callback();
-  client.zrange('z0',0,1000).addCallback(function (members) { 
+  client.zrange('z0',0,1000, function (err,members) { 
     test.assertEquals(3, members.length);
     test.assertEquals('m0', members[0]);
     test.assertEquals('m1', members[1]);
@@ -977,13 +981,13 @@ function test_zrange() {
     was_called_back();
   });
   expect_callback();
-  client.zrange('z0',-1,-1).addCallback(function (members) { 
+  client.zrange('z0',-1,-1, function (err,members) { 
     test.assertEquals(1, members.length);
     test.assertEquals('m2', members[0]);
     was_called_back();
   });
   expect_callback();
-  client.zrange('z0',-2,-1).addCallback(function (members) { 
+  client.zrange('z0',-2,-1, function (err,members) { 
     test.assertEquals(2, members.length);
     test.assertEquals('m1', members[0]);
     test.assertEquals('m2', members[1]);
@@ -993,7 +997,7 @@ function test_zrange() {
 
 function test_zrevrange() {
   expect_callback();
-  client.zrevrange('z0',0,1000).addCallback(function (members) { 
+  client.zrevrange('z0',0,1000, function (err,members) { 
     test.assertEquals(3, members.length);
     test.assertEquals('m2', members[0]);
     test.assertEquals('m1', members[1]);
@@ -1004,14 +1008,14 @@ function test_zrevrange() {
 
 function test_zrangebyscore() {
   expect_callback();
-  client.zrangebyscore('z0',200,300).addCallback(function (members) {
+  client.zrangebyscore('z0',200,300, function (err,members) {
     test.assertEquals(2, members.length);
     test.assertEquals('m1', members[0]);
     test.assertEquals('m2', members[1]);
     was_called_back();
   });
   expect_callback();
-  client.zrangebyscore('z0',100,1000).addCallback(function (members) {
+  client.zrangebyscore('z0',100,1000, function (err,members) {
     test.assertEquals(3, members.length);
     test.assertEquals('m0', members[0]);
     test.assertEquals('m1', members[1]);
@@ -1019,7 +1023,7 @@ function test_zrangebyscore() {
     was_called_back();
   });
   expect_callback();
-  client.zrangebyscore('z0',10000,100000).addCallback(function (members) {
+  client.zrangebyscore('z0',10000,100000, function (err,members) {
     test.assertEquals(0, members.length);
     was_called_back();
   });
