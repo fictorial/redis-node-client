@@ -151,6 +151,8 @@ Client.prototype.handle_multi_bulk_reply = function (buf) {
   var next_reply_at = crlf_at + crlf_len;
   if (count === -1)                   // value doesn't exist
     return [ null, next_reply_at ];  
+  if (count === 0)
+    return [ [], next_reply_at ];
   if (next_reply_at >= buffer.length) 
     return null;
   var results = [];
