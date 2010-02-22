@@ -68,14 +68,14 @@ Client.prototype.connect = function (callback) {
         callback();
     }); 
 
-    this.conn.addListener("receive", function (data) {
+    this.conn.addListener("data", function (data) {
       if (!self.buffer)
         self.buffer = "";
       self.buffer += data;
       self.handle_replies();
     });
 
-    this.conn.addListener("eof", function () {
+    this.conn.addListener("end", function () {
       if (self.conn && self.conn.readyState) {
         self.conn.close();
         self.conn = null;
@@ -322,7 +322,7 @@ function make_command_sender(name) {
         write_debug("command:" + command);
       }
       self.callbacks.push({ promise:promise, command:name.toLowerCase() });
-      self.conn.send(command);
+      self.conn.write(command);
     });
     return promise;
   };
@@ -399,7 +399,7 @@ Client.prototype.sort = function (key, options) {
     var command = 'sort ' + key + ' ' + opts.join(' ') + crlf;
     write_debug("call:    client.sort(...)\ncommand: " + command);
     self.callbacks.push({ promise:promise, command:'sort' });
-    self.conn.send(command);
+    self.conn.write(command);
   });
   return promise;
 }
@@ -408,7 +408,7 @@ Client.prototype.quit = function () {
   if (this.conn.readyState != "open") {
     this.conn.close();
   } else {
-    this.conn.send('quit' + crlf);
+    this.conn.write('quit' + crlf);
     this.conn.close();
   }
 };
@@ -417,7 +417,7 @@ Client.prototype.make_master = function () {
   var self = this;
   this.connect(function () {
     self.callbacks.push({ promise:null, command:'slaveof' });
-    self.conn.send('slaveof no one');
+    self.conn.write('slaveof no one');
   });
 };
 
@@ -427,6 +427,6 @@ Client.prototype.make_slave_of = function (host, port) {
     port = port || 6379;
     var command = 'slaveof ' + host + ' ' + port;
     self.callbacks.push({ promise:null, command:'slaveof' });
-    self.conn.send(command);
+    self.conn.write(command);
   });
 };
