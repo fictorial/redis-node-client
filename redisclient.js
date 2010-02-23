@@ -381,7 +381,7 @@ function post_process_results(command, result) {
 //   'lexicographically': true|false
 //   'store_key': 'a_key_name'
 
-Client.prototype.sort = function (key, options) {
+Client.prototype.sort = function (key, options, func) {
   var self = this;
   this.connect(function () {
     var opts = [];
@@ -404,7 +404,7 @@ Client.prototype.sort = function (key, options) {
     } 
     var command = 'sort ' + key + ' ' + opts.join(' ') + crlf;
     write_debug("call:    client.sort(...)\ncommand: " + command);
-    self.callbacks.push({ command:'sort' });
+    self.callbacks.push({ command:'sort', func: func });
     self.conn.write(command);
   });
 }

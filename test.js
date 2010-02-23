@@ -273,10 +273,7 @@ function test_expire() {
 
   // check that in 4 seconds that it's gone 
   setTimeout(function () { 
-          sys.debug("Timed out");
     client.exists('too', function(err, reply) {
-        sys.debug("Called too exists");
-        sys.debug("pending:" + pending_callbacks);
       expect_zero_as_reply(err, reply);
       if (pending_callbacks === 0) {
         sys.puts("\n\nall tests have completed");
