@@ -24,7 +24,7 @@ This Node.js-based Redis client:
     client.connect(learn_to_count);
 
     function learn_to_count () {
-        client.incr('counter').addCallback(function (value) {
+        client.incr('counter', function (err, value) {
             sys.puts("counter is now " + value);
             client.close();
         });
