@@ -418,20 +418,20 @@ Client.prototype.quit = function () {
   }
 };
 
-Client.prototype.make_master = function () {
+Client.prototype.make_master = function (func) {
   var self = this;
   this.connect(function () {
-    self.callbacks.push({ command:'slaveof' });
+    self.callbacks.push({ command:'slaveof', func: func});
     self.conn.write('slaveof no one');
   });
 };
 
-Client.prototype.make_slave_of = function (host, port) {
+Client.prototype.make_slave_of = function (host, port, func) {
   var self = this;
   this.connect(function () {
     port = port || 6379;
     var command = 'slaveof ' + host + ' ' + port;
-    self.callbacks.push({ promise:null, command:'slaveof' });
+    self.callbacks.push({ command:'slaveof', func: func });
     self.conn.write(command);
   });
 };
