@@ -51,10 +51,10 @@ file as a good example of this.
 
 ## Status
 
-* The full Redis 1.1 command specification is supported.
-* All tests pass using Redis HEAD at commit (09f6f7020952cd93e178da11e66e36f8a98398d1; Dec 1 2009) 
-* All tests pass using Node.js v0.1.20-3-g5b1a535 (Dec 1 2009)
+* Tested against Redis 1.2.2 and Node.js v0.1.30-11-ge0ecf4f
 * See the TODO file for known issues.
+* Thanks for the work of the forkers to keep up with the fast pace of Node.js 
+  and Redis development!
 
 ## Testing
 

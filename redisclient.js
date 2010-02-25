@@ -17,13 +17,13 @@ var inline_commands = {
   move:1, randomkey:1, rename:1, renamenx:1, rpop:1, save:1, scard:1, sdiff:1,
   sdiffstore:1, select:1, shutdown:1, sinter:1, sinterstore:1, smembers:1,
   spop:1, srandmember:1, sunion:1, sunionstore:1, ttl:1, type:1, 
-  zrange:1, zrevrange:1, zcard:1, zrangebyscore:1
+  zrange:1, zrevrange:1, zcard:1, zrangebyscore:1,
+  rpoplpush:1
 };
 
 var bulk_commands = { 
   getset:1, lpush:1, lrem:1, lset:1, rpush:1, sadd:1, set:1,
   setnx:1, sismember:1, smove:1, srem:1, zadd:1, zrem:1, zscore:1,
-  rpoplpush:1
 };
 
 var multi_bulk_commands = {
@@ -308,10 +308,6 @@ function make_command_sender(name) {
     if( typeof( arguments[arguments.length-1] ) === "function" ) {
       actual_callback = arguments[arguments.length-1];
       [].pop.call(args);
-    }
-    else {
-        sys.debug( name );
-        sys.debug( typeof( arguments[arguments.length-1] ));
     }
     var self = this;
     this.connect(function () {

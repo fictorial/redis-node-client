@@ -36,43 +36,43 @@ function was_called_back() {
   sys.puts("pending: " + pending_callbacks);
 }
 
-function expect_true_reply(err, reply) {
+function expect_true_reply(error, reply) {
   // Redis' protocol returns +OK for some operations.
   // The client converts this into a ECMAScript boolean type with value true.
   
   expect_callback();
-  if(!err) {
+  if(!error) {
     test.assertEquals(typeof(reply), 'boolean');
     test.assertTrue(reply);
     was_called_back();
   }
   else {
-    test.assertFalse(error);
+    test.assertTrue(error);
   }
 }
 
-function expectFalse(err, reply) {
+function expectFalse(error, reply) {
   expect_callback();
-  if(!err) {
+  if(!error) {
     test.assertEquals(typeof(reply), 'boolean');
     test.assertFalse(reply);
     was_called_back();
   }
   else {
-    test.assertFalse(error);
+    test.assertTrue(error);
   }
 }
 
 function expect_numeric_reply(expected_value) {
   expect_callback();
-  return function( err, reply ) {
-    if(!err) {
+  return function( error, reply ) {
+    if(!error) {
       test.assertEquals(typeof(reply), 'number');
       test.assertEquals(expected_value, reply);
       was_called_back();
     }
     else {
-      test.assertFalse(error);
+      test.assertTrue(error);
     }
   }
 }
