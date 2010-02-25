@@ -246,7 +246,7 @@ Client.prototype.handle_replies = function () {
     this.buffer = this.buffer.substring(next_reply_at);
     var callback = this.callbacks.shift();
     var result_value = result[0];
-    if( callback.func ) {
+    if (callback.func) {
       if (is_error) 
         callback.func(true, result_value);
       else {
@@ -305,9 +305,9 @@ function make_command_sender(name) {
     }
     var actual_callback = null;
     var args = arguments;
-    if( typeof( arguments[arguments.length-1] ) === "function" ) {
+    if (typeof(arguments[arguments.length-1]) === "function") {
       actual_callback = arguments[arguments.length-1];
-      [].pop.call(args);
+      Array.prototype.pop.call(args);
     }
     var self = this;
     this.connect(function () {
