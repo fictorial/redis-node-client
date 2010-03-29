@@ -4,7 +4,7 @@
 
 ## Future / Redis 2.0
 
-- Hashes: HGET, HSET, HDEL, HINCRBY, HEXISTS, HFIELDS, HLEN, HMSET, HMGET
+- Hashes: HGET, HSET, HDEL, HINCRBY, HEXISTS, HLEN, HMSET, HMGET, HKEYS, HVALS, HGETALL
 - Strings: APPEND, SUBSTR, LEN, PEEK, POKE, SETBIT, GETBIT
 - Blocking operations: BLPOP, BRPOPLPUSH
 - Sorted sets: ZRANK, ZCOUNT, ZREVRANK, ZREMBYRANK, ZUNION, ZINTER
@@ -12,6 +12,7 @@
     - MULTI, EXEC
     - Multi-bulk client protocol support
     - LPUSH, RPUSH return length of list now, not OK
+- [Channels](http://code.google.com/p/redis/issues/detail?id=209)
 
 ## Other
 
