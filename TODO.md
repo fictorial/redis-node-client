@@ -1,22 +1,22 @@
-# TO DO LIST
+# YESTERDAY
 
-**Patches are always welcome!**
+- Unit tests: callbacks are not being called back!
 
-## Future / Redis 2.0
+# ASAP
 
-- Hashes: HGET, HSET, HDEL, HINCRBY, HEXISTS, HLEN, HMSET, HMGET, HKEYS, HVALS, HGETALL
-- Strings: APPEND, SUBSTR, LEN, PEEK, POKE, SETBIT, GETBIT
-- Blocking operations: BLPOP, BRPOPLPUSH
-- Sorted sets: ZRANK, ZCOUNT, ZREVRANK, ZREMBYRANK, ZUNION, ZINTER
-- Protocol stuff:
-    - MULTI, EXEC
-    - Multi-bulk client protocol support
-    - LPUSH, RPUSH return length of list now, not OK
-- [Channels](http://code.google.com/p/redis/issues/detail?id=209)
+- HASH unit tests from [here](http://github.com/jakemcgraw/redis-node-client/commit/138641c703b50a43f1d2d88a13a2ac604e3f6d5b)
+- SORT using multi-bulk request format -- how?
 
-## Other
+# SOONISH
+
+- Make this a branch of regular redis-node-client
+- Update to support Node.js HEAD which is currently too buggy
+- [PubSub](http://code.google.com/p/redis/issues/detail?id=209)
+- PubSub unit tests
+- MULTI/EXEC/DISCARD support -- how should we handle errors? report replies? etc.
+
+# MAYBE SOMEDAY
 
 - Consistent hashing ala redis-rb and txRedisAPI
 - JS object-redis mapper using just redis hashes 
     - note: no nested objects in redis' hashes (so no nested lists, sets, hashes)
-
