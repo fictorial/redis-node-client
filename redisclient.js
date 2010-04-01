@@ -24,7 +24,12 @@
 */
 
 // To add support for new commands, edit the array called "commands" at the
-// bottom of file.
+// bottom of this file.
+
+// Set this to true to aid in debugging wire protocol input/output,
+// parsing methods, etc.
+
+exports.debugMode = false;
 
 var tcp = require("tcp"),
     sys = require("sys");
@@ -36,7 +41,7 @@ var CRLF = "\r\n",
 function Client(stream) {
     this.stream = stream;
     this.callbacks = [];
-    this.replies = '';
+    this.readBuffer = '';
 }
 
 exports.createClient = function (port, host, noReconnects) {
@@ -52,11 +57,12 @@ exports.createClient = function (port, host, noReconnects) {
         stream.setTimeout(0);
 
         client.reconnectionAttempts = 0;
+        client.attemptReconnects = !noReconnects;
     });
 
     stream.addListener("data", function (chunk) {
-        sys.puts("<-- " + debugFilter(chunk));
-
+        if (exports.debugMode)
+            sys.debug("[RECV] " + debugFilter(chunk));
         client.handleReplies(chunk);
     });
 
@@ -66,7 +72,7 @@ exports.createClient = function (port, host, noReconnects) {
     });
 
     stream.addListener("close", function (inError) {
-        if (!noReconnects && 
+        if (client.attemptReconnects && 
             client.reconnectionAttempts++ < MAX_RECONNECTION_ATTEMPTS) {
             stream.setTimeout(10);
             stream.connect(port, host);
@@ -76,156 +82,169 @@ exports.createClient = function (port, host, noReconnects) {
     return client;
 };
 
+Client.prototype.close = function () {
+    this.attemptReconnects = false;
+    this.stream.close();
+};
+
 function debugFilter(what) {
-    return what.replace(/\r\n/g, '<CRLF>');
+    var filtered = what;
+
+    filtered = filtered.replace(/\r\n/g, '<CRLF>');
+    filtered = filtered.replace(/\r/g, '<CR>');
+    filtered = filtered.replace(/\n/g, '<LF>');
+
+    return filtered;
 }
 
 Client.prototype.writeCommand = function (formattedRequest, responseCallback) {
-    sys.puts("--> " + debugFilter(formattedRequest));
+    if (exports.debugMode)
+        sys.debug("[SEND] " + debugFilter(formattedRequest));
 
     this.callbacks.push(responseCallback);
 
     if (this.stream.readyState == "open") 
         this.stream.write(formattedRequest);
-};
-
-// 'key' is what to sort, 'options' is how to sort.
-// 'options' is an object with optional properties:
-//   'byPattern': 'pattern'
-//   'limit': [start, end]
-//   'getPatterns': [ 'pattern', 'pattern', ... ]
-//   'ascending': true|false
-//   'lexicographically': true|false
-//   'storeKey': 'aKeyName'
-
-Client.prototype.sort = function (key, options, callback) {
-    var opts = [];
-
-    if (typeof(options) == 'object') {
-        if (options.byPattern) 
-            opts.push('by ' + options.byPattern);
-
-        if (options.getPatterns) {
-            options.getPatterns.forEach(function (pat) {
-                opts.push('get ' + pat);
-            });
-        }
-
-        if (!options.ascending)
-            opts.push('desc');
-
-        if (options.lexicographically)
-            opts.push('alpha');
-
-        if (options.storeKey) 
-            opts.push('store ' + options.storeKey);
-
-        if (options.limit)
-            opts.push('limit ' + options.limit[0] + ' ' + options.limit[1]);
-    } 
-
-    var buffer = 'sort ' + key + ' ' + opts.join(' ') + CRLF;
-
-    return this.writeCommand(buffer, callback);
+    else 
+        throw new Error("disconnected");
 };
 
 Client.prototype.handleReplies = function (chunk) {
-    this.replies += chunk;
+    this.readBuffer += chunk;
 
-    while (this.replies.length > 0) {
+    while (this.readBuffer.length > 0) {
+
+        // Do not shift the first callback off yet until we know
+        // there's a full reply in the read buffer.
+
+        var callback = this.callbacks[0];  
+
+        if (exports.debugMode) {
+            sys.debug("==================================================");
+            sys.debug("from command: " + debugFilter(callback.commandBuffer));
+            sys.debug("recv buffer: " + debugFilter(this.readBuffer.substring(0, 40)) + " ...");
+        }
+
         var reply, error;
 
-        switch (this.replies[0]) {
+        switch (this.readBuffer[0]) {
             case '$': reply = this.parseBulkReply();      break;
             case '*': reply = this.parseMultiBulkReply(); break;
             case '+': reply = this.parseInlineReply();    break;
             case ':': reply = this.parseIntegerReply();   break;
             case '-': error = this.parseErrorReply();     break;
-            default: 
-                throw new Error("'" + this.replies[0] + "'");
+            default: throw new Error("What is '" + this.readBuffer[0] + "'?");
         }
 
-        if (this.callbacks.length > 0) {
-            var callback = this.callbacks.shift();
+        if (!(reply instanceof PartialReply)) {
+            // Some full reply or error was read from the reply buffer.
 
-            if (reply)      
-                callback(null, processReply(callback.commandName, reply));
-            else if (error) 
+            if (reply != null) {
+                var processedReply = processReply(callback.commandName, reply);
+
+                if (exports.debugMode) 
+                    sys.debug("reply: " + JSON.stringify(processedReply));
+
+                callback(null, processedReply);
+            } else if (error != null) {
+                if (exports.debugMode) {
+                    sys.debug("error: " + JSON.stringify(error));
+                    sys.debug("callback = " + callback);
+                }
+
                 callback(error, null);
+            } 
+
+            this.callbacks.shift();
         }
     }
 };
 
+function PartialReply() {}
+exports.PartialReply = PartialReply;
+
 Client.prototype.parseBulkReply = function () {
-    var crlfIndex = this.replies.indexOf(CRLF);
-    if (crlfIndex == -1) 
-        return null;
+    var crlfIndex = this.readBuffer.indexOf(CRLF);
+    if (crlfIndex == -1) return new PartialReply();
 
-    var replyLength = parseInt(this.replies.substr(1, crlfIndex), 10);
-    if (this.replies.length - crlfIndex + CRLF_LEN < replyLength) 
-        return null;
+    var replyLength = parseInt(this.readBuffer.substring(1, crlfIndex), 10);
 
-    var reply = this.replies.substr(crlfIndex + CRLF_LEN, replyLength);
-    this.replies = this.replies.substr(crlfIndex + CRLF_LEN + 
-        replyLength + CRLF_LEN);
+    if (replyLength > 0) {
+        var reply;
+        if (this.readBuffer.length - crlfIndex + CRLF_LEN < replyLength)
+            return new PartialReply();
+        reply = this.readBuffer.substr(crlfIndex + CRLF_LEN, replyLength);
+        var nextReplyIndex = crlfIndex + CRLF_LEN + replyLength + CRLF_LEN;
+        this.readBuffer = this.readBuffer.substring(nextReplyIndex);
+        return reply;
+    }
 
-    return reply;
+    this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
+    return null;
 };
 
 Client.prototype.parseMultiBulkReply = function () {
-    var crlfIndex = this.replies.indexOf(CRLF);
-    if (crlfIndex == -1) 
-        return null;
+    var crlfIndex = this.readBuffer.indexOf(CRLF);
+    if (crlfIndex == -1) return new PartialReply();
 
-    var count = parseInt(this.replies.substr(1, crlfIndex), 10);
-    this.replies = this.replies.substr(crlfIndex + CRLF_LEN);
+    var count = parseInt(this.readBuffer.substring(1, crlfIndex), 10);
+    this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
+    if (count <= 0) return null;   // empty/missing/none
 
     var replyParts = [];
-    for (var i=0; i<count; ++i)
-        replyParts.push(this.parseBulkReply());
+    for (var i=0; i<count; ++i) {
+        var part = this.parseBulkReply();
+
+        // The receive buffer might contain a partial multi-bulk reply but
+        // we're removing the bulk reply parts from the front as we parse the
+        // multi-bulk reply.  If a full multi-bulk reply is not present, we put
+        // the partial multi-bulk reply back into the receive buffer.
+
+        if (part instanceof PartialReply) {
+            var origReply = "*" + count + CRLF;
+            for (var i=0; i<replyParts.length; ++i) {
+                var origValue = replyParts[i].toString();
+                origReply += "$" + origValue.length + CRLF + origValue + CRLF;
+            }
+            this.readBuffer = origReply + this.readBuffer;
+            return new PartialReply();
+        }
+
+        replyParts.push(part);
+    }
+
     return replyParts;
 };
 
 Client.prototype.parseInlineReply = function () {
-    var crlfIndex = this.replies.indexOf(CRLF);
-    if (crlfIndex == -1) 
-        return null;
-
-    var reply = this.replies.substr(1, crlfIndex);
-    this.replies = this.replies.substr(crlfIndex + CRLF_LEN);
+    var crlfIndex = this.readBuffer.indexOf(CRLF);
+    if (crlfIndex == -1) return new PartialReply();
+    var reply = this.readBuffer.substring(1, crlfIndex);
+    this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
     return reply === 'OK' ? true : reply;
 };
 
 Client.prototype.parseIntegerReply = function () {
-    var crlfIndex = this.replies.indexOf(CRLF);
-    if (crlfIndex == -1) 
-        return null;
-
-    var reply = parseInt(this.replies.substr(1, crlfIndex), 10);
-    this.replies = this.replies.substr(crlfIndex + CRLF_LEN);
+    var crlfIndex = this.readBuffer.indexOf(CRLF);
+    if (crlfIndex == -1) return new PartialReply();
+    var reply = parseInt(this.readBuffer.substring(1, crlfIndex), 10);
+    this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
     return reply;
 };
 
 Client.prototype.parseErrorReply = function () {
-    var crlfIndex = this.replies.indexOf(CRLF);
-    if (crlfIndex == -1) 
-        return null;
-
-    var reply = this.replies.substr(1, crlfIndex);
-    this.replies = this.replies.substr(crlfIndex + CRLF_LEN);
+    var crlfIndex = this.readBuffer.indexOf(CRLF);
+    if (crlfIndex == -1) return new PartialReply();
+    var reply = this.readBuffer.substring(1, crlfIndex);
+    this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
     return reply;
 };
 
 function maybeAsNumber(str) {
-  var value = parseInt(str, 10);
-
-  if (value === NaN) 
-    value = parseFloat(str);
-
-  if (value === NaN) 
-    return str;
-
-  return value;
+    var value = parseInt(str, 10);
+    if (isNaN(value)) value = parseFloat(str);
+    if (isNaN(value)) return str;
+    return value;
 }
 
 function processReply(commandName, reply) {
@@ -243,15 +262,10 @@ function processReply(commandName, reply) {
 
     if (commandName == 'hgetall' && reply.length % 2 == 0) {
         var hash = {};
-
         for (var i=0; i<reply.length; i += 2) 
             hash[reply[i]] = reply[i + 1];
-
         return hash;
     }
-
-    if (commandName === 'keys') 
-        return reply.split(' ');
 
     if (commandName.match(/lastsave|([sz]card)|zscore/)) 
         return maybeAsNumber(reply);
@@ -260,42 +274,124 @@ function processReply(commandName, reply) {
 }
 
 var commands = [ 
-    "append", "auth", "bgsave", "blpop", "brpoplpush", "dbsize", "decr",
-    "decrby", "del", "exists", "expire", "flushall", "flushdb", "get",
-    "getbit", "getset", "hdel", "hexists", "hget", "hgetall", "hincrby",
-    "hkeys", "hlen", "hmget", "hmset", "hset", "hvals", "incr", "incrby",
-    "info", "keys", "lastsave", "len", "lindex", "llen", "lpop", "lpush",
-    "lrange", "lrem", "lset", "ltrim", "mget", "move", "mset", "msetnx",
-    "peek", "poke", "randomkey", "rename", "renamenx", "rpop", "rpoplpush",
-    "rpush", "sadd", "save", "scard", "sdiff", "sdiffstore", "select", "set",
-    "setbit", "setnx", "shutdown", "sinter", "sinterstore", "sismember",
-    "smembers", "smove", "spop", "srandmember", "srem", "substr", "sunion",
-    "sunionstore", "ttl", "type", "zadd", "zcard", "zcount", "zinter",
-    "zrange", "zrangebyscore", "zrank", "zrem", "zrembyrank", "zrevrange",
-    "zrevrank", "zscore", "zunion"
+    "append",
+    "auth",
+    "bgsave",
+    "blpop",
+    "brpoplpush",
+    "dbsize",
+    "decr",
+    "decrby",
+    "del",
+    "exists",
+    "expire",
+    "expireat",
+    "flushall",
+    "flushdb",
+    "get",
+    "getset",
+    "hdel",
+    "hexists",
+    "hget",
+    "hgetall",
+    "hincrby",
+    "hkeys",
+    "hlen",
+    "hmget",
+    "hmset",
+    "hset",
+    "hvals",
+    "incr",
+    "incrby",
+    "info",
+    "keys",
+    "lastsave",
+    "len",
+    "lindex",
+    "llen",
+    "lpop",
+    "lpush",
+    "lrange",
+    "lrem",
+    "lset",
+    "ltrim",
+    "mget",
+    "move",
+    "mset",
+    "msetnx",
+    "publish",
+    "randomkey",
+    "rename",
+    "renamenx",
+    "rpop",
+    "rpoplpush",
+    "rpush",
+    "sadd",
+    "save",
+    "scard",
+    "sdiff",
+    "sdiffstore",
+    "select",
+    "set",
+    "setnx",
+    "shutdown",
+    "sinter",
+    "sinterstore",
+    "sismember",
+    "smembers",
+    "smove",
+    "sort",
+    "spop",
+    "srandmember",
+    "srem",
+    "subscribe",
+    "sunion",
+    "sunionstore",
+    "ttl",
+    "type",
+    "unsubscribe",
+    "zadd",
+    "zcard",
+    "zcount",
+    "zincrby",
+    "zinter",
+    "zrange",
+    "zrangebyscore",
+    "zrank",
+    "zrem",
+    "zrembyrank",
+    "zremrangebyrank",
+    "zremrangebyscore",
+    "zrevrange",
+    "zrevrank",
+    "zscore",
+    "zunion",
 ];
 
 commands.forEach(function (commandName) {
     Client.prototype[commandName] = function () {
-        var callback = arguments.length > 0 
-                     ? arguments[arguments.length - 1] 
-                     : null;
+        var callback = null;
+        var argCount = arguments.length;
 
-        var argCount = callback 
-                     ? arguments.length - 1 
-                     : arguments.length;
+        if (typeof(arguments[argCount - 1]) == 'function') {
+            callback = arguments[argCount - 1];
+            argCount--;
+        } else 
+            callback = function () {};
 
-        var buffer = "*" + arguments.length + CRLF +
+        var buffer = "*" + (1 + argCount) + CRLF +
                      "$" + commandName.length + CRLF +
-                     commandName + CRLF;
+                     commandName.toUpperCase() + CRLF;
 
         for (var i=0; i < argCount; ++i) {
             var arg = arguments[i].toString();
             buffer += "$" + arg.length + CRLF + arg + CRLF;
         }
 
-        if (callback)
+        if (callback) {
             callback.commandName = commandName;
+            if (exports.debugMode) callback.commandBuffer = buffer;
+        }
         
         return this.writeCommand(buffer, callback);
     };
