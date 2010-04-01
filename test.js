@@ -1090,9 +1090,119 @@ function testZRANGEBYSCORE() {
     });
 }
 
+function testZCOUNT() {
+    // TODO code me
+}
+
+function testZINCRBY() {
+    // TODO code me
+}
+
+function testZINTER() {
+    // TODO code me
+}
+
+function testZRANK() {
+    // TODO code me
+}
+
+function testZREMBYRANK() {
+    // TODO code me
+}
+
+function testZREMRANGEBYRANK() {
+    // TODO code me
+}
+
+function testZREMRANGEBYSCORE() {
+    // TODO code me
+}
+
+function testZREVRANK() {
+    // TODO code me
+}
+
+function testZUNION() {
+    // TODO code me
+}
+
+function testHDEL() {
+    // TODO code me
+}
+
+function testHEXISTS() {
+    // TODO code me
+}
+
+function testHGET() {
+    // TODO code me
+}
+
+function testHGETALL() {
+    // TODO code me
+}
+
+function testHINCRBY() {
+    // TODO code me
+}
+
+function testHKEYS() {
+    // TODO code me
+}
+
+function testHLEN() {
+    // TODO code me
+}
+
+function testHMGET() {
+    // TODO code me
+}
+
+function testHMSET() {
+    // TODO code me
+}
+
+function testHSET() {
+    // TODO code me
+}
+
+function testHVALS() {
+    // TODO code me
+}
+
+function testPSUBSCRIBE() {
+    // TODO code me
+}
+
+function testPUBLISH() {
+    // TODO code me
+}
+
+function testPUNSUBSCRIBE() {
+    // TODO code me
+}
+
+function testSUBSCRIBE() {
+    // TODO code me
+}
+
+function testUNSUBSCRIBE() {
+    // TODO code me
+}
+
+function testBLPOP() {
+    // TODO code me
+}
+
+function testBRPOPLPUSH() {
+    // TODO code me
+}
+
 var allTestFunctions = [
     testAUTH,
     testBGSAVE,
+    testBLPOP,
+    testBRPOPLPUSH,
     testDBSIZE,
     testDECR,
     testDECRBY,
@@ -1103,6 +1213,17 @@ var allTestFunctions = [
     testFLUSHDB,
     testGET,
     testGETSET,
+    testHDEL, 
+    testHEXISTS,
+    testHGET,
+    testHGETALL,
+    testHINCRBY,
+    testHKEYS,
+    testHLEN,
+    testHMGET,
+    testHMSET,
+    testHSET,
+    testHVALS,
     testINCR,
     testINCRBY,
     testINFO,
@@ -1125,6 +1246,9 @@ var allTestFunctions = [
     testParseInlineReply,
     testParseIntegerReply,
     testParseMultiBulkReply,
+    testPSUBSCRIBE,
+    testPUBLISH,
+    testPUNSUBSCRIBE,
     testRANDOMKEY,
     testRENAME,
     testRENAMENX,
@@ -1149,17 +1273,28 @@ var allTestFunctions = [
     testSORT,
     testSPOP,
     testSREM,
+    testSUBSCRIBE,
     testSUNION,
     testSUNIONSTORE,
     testTTL,
     testTYPE,
+    testUNSUBSCRIBE,
     testZADD,
     testZCARD,
+    testZCOUNT,
+    testZINCRBY,
+    testZINTER,
     testZRANGE,
     testZRANGEBYSCORE,
+    testZRANK,
     testZREM,
+    testZREMBYRANK,
+    testZREMRANGEBYRANK,
+    testZREMRANGEBYSCORE,
     testZREVRANGE,
+    testZREVRANK,
     testZSCORE,
+    testZUNION,
 ];
 
 function checkIfDone() {
