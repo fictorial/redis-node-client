@@ -43,22 +43,69 @@ var sys = require("sys"),
 
 redisclient.debugMode = true;
 
+function showContext(context) {
+    sys.debug("");
+    sys.debug("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
+    sys.debug(context + " FAILED!");
+    sys.debug("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+    sys.debug("");
+}
+
+// These wrappers around the assert module exist because we generate functions
+// to test for expected conditions which lose context, and assert's functions
+// use the 'message' in place of the failed condition.
+
+function checkEqual(expected, actual, context) {
+    try {
+        assert.equal(expected, actual);
+    } catch (e) {
+        showContext(context);
+        throw e;
+    }
+}
+
+function check(what, context) {
+    try {
+        assert.ok(what);
+    } catch (e) {
+        showContext(context);
+        throw e;
+    }
+}
+
+function checkDeepEqual(expected, actual, context) {
+    try {
+        assert.deepEqual(expected, actual);
+    } catch (e) {
+        showContext(context);
+        throw e;
+    }
+}
+
 // Redis' protocol returns +OK for some operations.
 // The client converts this into a ECMAScript boolean type with value true.
 
 function expectTrueReply(context) {
     return function (err, reply) {
         if (err) assert.fail(err, context);
-        assert.equal(typeof(reply), 'boolean', context);
-        assert.ok(reply, context);
+        checkEqual(typeof(reply), 'boolean', context);
+        check(reply, context);
     };
+}
+
+function maybeAsNumber(str) {
+    var value = parseInt(str, 10);
+    if (isNaN(value)) value = parseFloat(str);
+    if (isNaN(value)) return str;
+    return value;
 }
 
 function expectNumericReply(expectedValue, context) {
     return function (err, reply) {
         if (err) assert.fail(err, context);
-        assert.equal('number', typeof(reply), context);
-        assert.equal(expectedValue, reply, context);
+        var value = maybeAsNumber(reply);
+        checkEqual('number', typeof(value), context);
+        checkEqual(expectedValue, value, context);
     };
 }
 
@@ -74,79 +121,79 @@ function testParseBulkReply() {
     var a = "$6\r\nFOOBAR\r\n";
     client.readBuffer = a;
     var reply = client.parseBulkReply();
-    assert.equal(reply, "FOOBAR", "testParseBulkReply");
+    checkEqual(reply, "FOOBAR", "testParseBulkReply");
 
     var b = "$-1\r\n";
     client.readBuffer = b;
     reply = client.parseBulkReply();
-    assert.equal(reply, null, "testParseBulkReply");
+    checkEqual(reply, null, "testParseBulkReply");
 
     var c = "$-1\r";     // NB: partial command, missing \n
     client.readBuffer = c;
     reply = client.parseBulkReply();
-    assert.ok(reply instanceof redisclient.PartialReply, "testParseBulkReply");
+    check(reply instanceof redisclient.PartialReply, "testParseBulkReply");
 }
 
 function testParseMultiBulkReply() {
     var a = "*4\r\n$3\r\nFOO\r\n$3\r\nBAR\r\n$5\r\nHELLO\r\n$5\r\nWORLD\r\n";
     client.readBuffer = a;
     var reply = client.parseMultiBulkReply();
-    assert.ok(reply instanceof Array, "testParseMultiBulkReply");
-    assert.equal(reply.length, 4, "testParseMultiBulkReply");
-    assert.deepEqual(reply, ['FOO', 'BAR', 'HELLO', 'WORLD'], "testParseMultiBulkReply");
+    check(reply instanceof Array, "testParseMultiBulkReply");
+    checkEqual(reply.length, 4, "testParseMultiBulkReply");
+    checkDeepEqual(reply, ['FOO', 'BAR', 'HELLO', 'WORLD'], "testParseMultiBulkReply");
 
     var b = "$-1\r\n";
     client.readBuffer = b;
     reply = client.parseMultiBulkReply();
-    assert.equal(reply, null, "testParseMultiBulkReply");
+    checkEqual(reply, null, "testParseMultiBulkReply");
 
     var c = "*3\r\n$3\r\nFOO\r\n$-1\r\n$4\r\nBARZ\r\n";
     client.readBuffer = c;
     reply = client.parseMultiBulkReply();
-    assert.equal(reply.length, 3, "testParseMultiBulkReply");
-    assert.deepEqual(reply, ['FOO', null, 'BARZ'], "testParseMultiBulkReply");
+    checkEqual(reply.length, 3, "testParseMultiBulkReply");
+    checkDeepEqual(reply, ['FOO', null, 'BARZ'], "testParseMultiBulkReply");
 }
 
 function testParseInlineReply() {
     var a = "+OK\r\n";
     client.readBuffer = a;
     var reply = client.parseInlineReply();
-    assert.equal(typeof(reply), 'boolean', "testParseInlineReply");
-    assert.equal(true, reply, "testParseInlineReply");
+    checkEqual(typeof(reply), 'boolean', "testParseInlineReply");
+    checkEqual(true, reply, "testParseInlineReply");
 
     var b = "+WHATEVER\r\n";
     client.readBuffer = b;
     reply = client.parseInlineReply();
-    assert.equal(typeof(reply), 'string', "testParseInlineReply");
-    assert.equal('WHATEVER', reply, "testParseInlineReply");
+    checkEqual(typeof(reply), 'string', "testParseInlineReply");
+    checkEqual('WHATEVER', reply, "testParseInlineReply");
 }
 
 function testParseIntegerReply() {
     var a = ":-1\r\n";
     client.readBuffer = a;
     var reply = client.parseIntegerReply();
-    assert.equal(typeof(reply), 'number', "testParseIntegerReply");
-    assert.equal(reply, -1, "testParseIntegerReply");
+    checkEqual(typeof(reply), 'number', "testParseIntegerReply");
+    checkEqual(reply, -1, "testParseIntegerReply");
 
     var b = ":1000\r\n";
     client.readBuffer = b;
     reply = client.parseIntegerReply();
-    assert.equal(typeof(reply), 'number', "testParseIntegerReply");
-    assert.equal(reply, 1000, "testParseIntegerReply");
+    checkEqual(typeof(reply), 'number', "testParseIntegerReply");
+    checkEqual(reply, 1000, "testParseIntegerReply");
 }
 
 function testParseErrorReply() {
     var a = "-ERR solar flare\r\n";
     client.readBuffer = a;
     var reply = client.parseErrorReply();
-    assert.equal(typeof(reply), 'string', "testParseErrorReply");
-    assert.equal(reply, "ERR solar flare", "testParseErrorReply");
+    checkEqual(typeof(reply), 'string', "testParseErrorReply");
+    checkEqual(reply, "ERR solar flare", "testParseErrorReply");
 
     var b = "-hiccup\r\n";
     client.readBuffer = b;
     reply = client.parseErrorReply();
-    assert.equal(typeof(reply), 'string', "testParseErrorReply");
-    assert.equal(reply, "hiccup", "testParseErrorReply");
+    checkEqual(typeof(reply), 'string', "testParseErrorReply");
+    checkEqual(reply, "hiccup", "testParseErrorReply");
 }
 
 function testAUTH() {
@@ -186,12 +233,12 @@ function testGET() {
 
     client.get('foo', function (err, value) {
         if (err) assert.fail(err, "testGET");
-        assert.equal(value, 'bar', "testGET");
+        checkEqual(value, 'bar', "testGET");
     });
 
     client.get('baz', function (err, value) {
         if (err) assert.fail(err, "testGET");
-        assert.equal(value, 'buz', "testGET");
+        checkEqual(value, 'buz', "testGET");
     });
 }
 
@@ -201,8 +248,8 @@ function testMGET() {
 
     client.mget('foo', 'baz', function (err, values) {
         if (err) assert.fail(err, "testMGET");
-        assert.equal(values[0], 'bar', "testMGET");
-        assert.equal(values[1], 'buz', "testMGET");
+        checkEqual(values[0], 'bar', "testMGET");
+        checkEqual(values[1], 'buz', "testMGET");
     });
 }
 
@@ -211,11 +258,11 @@ function testGETSET() {
 
     client.getset('foo', 'fuzz', function (err, previousValue) {
         if (err) assert.fail(err, "testGETSET");
-        assert.equal(previousValue, 'bar', "testGETSET");
+        checkEqual(previousValue, 'bar', "testGETSET");
 
         client.get('foo', function (err, value) {
             if (err) assert.fail(err, "testGETSET");
-            assert.equal(value, 'fuzz', "testGETSET");
+            checkEqual(value, 'fuzz', "testGETSET");
         });
     });
 }
@@ -226,18 +273,18 @@ function testSETANDGETMULTIBYTE() {
 
     client.get('unicode', function (err, value) {
         if (err) assert.fail(err, "testSETANDGETMULTIBYTE");
-        assert.equal(value, testValue, "testSETANDGETMULTIBYTE");
+        checkEqual(value, testValue, "testSETANDGETMULTIBYTE");
     });
 }
 
 function testINFO() {
     client.info( function (err, info) {
-        assert.ok(info instanceof Object, "testINFO");
-        assert.ok(info.hasOwnProperty('redis_version'), "testINFO");
-        assert.ok(info.hasOwnProperty('connected_clients'), "testINFO");
-        assert.ok(info.hasOwnProperty('uptime_in_seconds'), "testINFO");
-        assert.equal(typeof(info.uptime_in_seconds), 'number', "testINFO");
-        assert.equal(typeof(info.connected_clients), 'number', "testINFO");
+        check(info instanceof Object, "testINFO");
+        check(info.hasOwnProperty('redis_version'), "testINFO");
+        check(info.hasOwnProperty('connected_clients'), "testINFO");
+        check(info.hasOwnProperty('uptime_in_seconds'), "testINFO");
+        checkEqual(typeof(info.uptime_in_seconds), 'number', "testINFO");
+        checkEqual(typeof(info.connected_clients), 'number', "testINFO");
     });
 }
 
@@ -281,8 +328,8 @@ function testKEYS() {
 
     client.keys('foo*', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
-        assert.equal(keys.length, 2, "testKEYS");
-        assert.deepEqual(keys.sort(), ['foo1', 'foo2'], "testKEYS");
+        checkEqual(keys.length, 2, "testKEYS");
+        checkDeepEqual(keys.sort(), ['foo1', 'foo2'], "testKEYS");
     });
 
     client.set('baz', 'bazValue', expectTrueReply("testKEYS"))
@@ -292,14 +339,14 @@ function testKEYS() {
 
     client.keys('*', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
-        assert.equal(keys.length, 4, "testKEYS");
-        assert.deepEqual(keys.sort(), ['baz', 'boo', 'foo1', 'foo2'], "testKEYS");
+        checkEqual(keys.length, 4, "testKEYS");
+        checkDeepEqual(keys.sort(), ['baz', 'boo', 'foo1', 'foo2'], "testKEYS");
     });
 
     client.keys('?oo', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
-        assert.equal(keys.length, 1, "testKEYS");
-        assert.deepEqual(keys.sort(), ['boo'], "testKEYS");
+        checkEqual(keys.length, 1, "testKEYS");
+        checkDeepEqual(keys.sort(), ['boo'], "testKEYS");
     });
 }
 
@@ -309,7 +356,7 @@ function testRANDOMKEY() {
 
     client.randomkey(function (err, someKey) {
         if (err) assert.fail(err, "testRANDOMKEY");
-        assert.ok(/^(foo|baz)$/.test(someKey), "testRANDOMKEY");
+        check(/^(foo|baz)$/.test(someKey), "testRANDOMKEY");
     });
 }
 
@@ -337,7 +384,7 @@ function testDBSIZE() {
 
     client.dbsize(function (err, value) {
         if (err) assert.fail(err, "testDBSIZE");
-        assert.equal(value, 2, "testDBSIZE");
+        checkEqual(value, 2, "testDBSIZE");
     });
 }
 
@@ -363,7 +410,7 @@ function testTTL() {
 
     client.ttl('foo', function (err, value) {
         if (err) assert.fail(err, "testTTL");
-        assert.equal(value, -1, "testTTL");
+        checkEqual(value, -1, "testTTL");
     });
 
     client.set('bar', 'baz', expectTrueReply("testTTL"));
@@ -371,7 +418,7 @@ function testTTL() {
 
     client.ttl('bar', function (err, value) {
         if (err) assert.fail(err, "testTTL");
-        assert.ok(value > 0, "testTTL");
+        check(value > 0, "testTTL");
     });
 }
 
@@ -400,21 +447,21 @@ function testLRANGE() {
 
     client.lrange('list0', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testLRANGE");
-        assert.equal(values.length, 2, "testLRANGE");
-        assert.equal(values[0], 'list0value0', "testLRANGE");
-        assert.equal(values[1], 'list0value1', "testLRANGE");
+        checkEqual(values.length, 2, "testLRANGE");
+        checkEqual(values[0], 'list0value0', "testLRANGE");
+        checkEqual(values[1], 'list0value1', "testLRANGE");
     });
 
     client.lrange('list0', 0, 0, function (err, values) {
         if (err) assert.fail(err, "testLRANGE");
-        assert.equal(values.length, 1, "testLRANGE");
-        assert.equal(values[0], 'list0value0', "testLRANGE");
+        checkEqual(values.length, 1, "testLRANGE");
+        checkEqual(values[0], 'list0value0', "testLRANGE");
     });
 
     client.lrange('list0', -1, -1, function (err, values) {
         if (err) assert.fail(err, "testLRANGE");
-        assert.equal(values.length, 1, "testLRANGE");
-        assert.equal(values[0], 'list0value1', "testLRANGE");
+        checkEqual(values.length, 1, "testLRANGE");
+        checkEqual(values[0], 'list0value1', "testLRANGE");
     });
 }
 
@@ -425,21 +472,21 @@ function testLTRIM() {
 
     client.llen('list0', function (err, len) {
         if (err) assert.fail(err, "testLTRIM");
-        assert.equal(len, 3, "testLTRIM");
+        checkEqual(len, 3, "testLTRIM");
     });
 
     client.ltrim('list0', 0, 1, expectTrueReply("testLTRIM"))
 
     client.llen('list0', function (err, len) {
         if (err) assert.fail(err, "testLTRIM");
-        assert.equal(len, 2, "testLTRIM");
+        checkEqual(len, 2, "testLTRIM");
     });
 
     client.lrange('list0', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testLTRIM");
-        assert.equal(values.length, 2, "testLTRIM");
-        assert.equal(values[0], 'list0value0', "testLTRIM");
-        assert.equal(values[1], 'list0value1', "testLTRIM");
+        checkEqual(values.length, 2, "testLTRIM");
+        checkEqual(values[0], 'list0value0', "testLTRIM");
+        checkEqual(values[1], 'list0value1', "testLTRIM");
     });
 }
 
@@ -449,19 +496,19 @@ function testLINDEX() {
 
     client.lindex('list0', 0, function (err, value) {
         if (err) assert.fail(err, "testLINDEX");
-        assert.equal(value, 'list0value0', "testLINDEX");
+        checkEqual(value, 'list0value0', "testLINDEX");
     });
 
     client.lindex('list0', 1, function (err, value) {
         if (err) assert.fail(err, "testLINDEX");
-        assert.equal(value, 'list0value1', "testLINDEX");
+        checkEqual(value, 'list0value1', "testLINDEX");
     });
 
     // out of range => null
 
     client.lindex('list0', 2, function (err, value) {
         if (err) assert.fail(err, "testLINDEX");
-        assert.equal(value, null, "testLINDEX");
+        checkEqual(value, null, "testLINDEX");
     });
 }
 
@@ -471,8 +518,8 @@ function testLSET() {
 
     client.lrange('list0', 0, 0, function (err, values) {
         if (err) assert.fail(err, "testLSET");
-        assert.equal(values.length, 1, "testLSET");
-        assert.equal(values[0], 'LIST0VALUE0', "testLSET");
+        checkEqual(values.length, 1, "testLSET");
+        checkEqual(values[0], 'LIST0VALUE0', "testLSET");
     });
 }
 
@@ -485,9 +532,9 @@ function testLREM() {
 
     client.lrange('list0', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testLREM");
-        assert.equal(values.length, 2, "testLREM");
-        assert.equal(values[0], 'DEF', "testLREM");
-        assert.equal(values[1], 'ABC', "testLREM");
+        checkEqual(values.length, 2, "testLREM");
+        checkEqual(values[0], 'DEF', "testLREM");
+        checkEqual(values[1], 'ABC', "testLREM");
     });
 }
 
@@ -498,18 +545,18 @@ function testLPOP() {
 
     client.lpop('list0', function (err, value) {
         if (err) assert.fail(err, "testLPOP");
-        assert.equal(value, 'GHI', "testLPOP");
+        checkEqual(value, 'GHI', "testLPOP");
     });
 
     client.lpop('list0', function (err, value) {
         if (err) assert.fail(err, "testLPOP");
-        assert.equal(value, 'DEF', "testLPOP");
+        checkEqual(value, 'DEF', "testLPOP");
     });
 
     client.lrange('list0', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testLPOP");
-        assert.equal(values.length, 1, "testLPOP");
-        assert.equal(values[0], 'ABC', "testLPOP");
+        checkEqual(values.length, 1, "testLPOP");
+        checkEqual(values[0], 'ABC', "testLPOP");
     });
 }
 
@@ -519,17 +566,17 @@ function testRPOP() {
 
     client.rpop('list0', function (err, value) {
         if (err) assert.fail(err, "testRPOP");
-        assert.equal(value, 'ABC', "testRPOP");
+        checkEqual(value, 'ABC', "testRPOP");
     });
 
     client.rpop('list0', function (err, value) {
         if (err) assert.fail(err, "testRPOP");
-        assert.equal(value, 'DEF', "testRPOP");
+        checkEqual(value, 'DEF', "testRPOP");
     });
 
     client.llen('list0', function (err, len) {
         if (err) assert.fail(err, "testRPOP");
-        assert.equal(len, 0, "testRPOP");
+        checkEqual(len, 0, "testRPOP");
     });
 }
 
@@ -539,16 +586,16 @@ function testRPOPLPUSH() {
 
     client.rpoplpush('src', 'dst', function (err, value) {
         if (err) assert.fail(err, "testRPOPLPUSH");
-        assert.equal(value, 'DEF', "testRPOPLPUSH");
+        checkEqual(value, 'DEF', "testRPOPLPUSH");
 
         client.lrange('src', 0, -1, function (err, values) {
             if (err) assert.fail(err, "testRPOPLPUSH");
-            assert.deepEqual(values, [ 'ABC' ], "testRPOPLPUSH");
+            checkDeepEqual(values, [ 'ABC' ], "testRPOPLPUSH");
         });
 
         client.lrange('dst', 0, -1, function (err, values) {
             if (err) assert.fail(err, "testRPOPLPUSH");
-            assert.deepEqual(values, [ 'DEF' ], "testRPOPLPUSH");
+            checkDeepEqual(values, [ 'DEF' ], "testRPOPLPUSH");
         });
     });
 }
@@ -585,7 +632,7 @@ function testSPOP() {
 
     client.spop('zzz', function (err, value) {
         if (err) assert.fail(err, "testSPOP");
-        assert.equal(value, 'member0', "testSPOP");
+        checkEqual(value, 'member0', "testSPOP");
         client.scard('zzz', expectNumericReply(0, "testSPOP"));
     });
 }
@@ -604,9 +651,9 @@ function testSDIFF() {
     client.sdiff('foo', 'bar', 'baz', function (err, values) {
         if (err) assert.fail(err, "testSDIFF");
         values.sort();
-        assert.equal(values.length, 2, "testSDIFF");
-        assert.equal(values[0], 'b', "testSDIFF");
-        assert.equal(values[1], 'x', "testSDIFF");
+        checkEqual(values.length, 2, "testSDIFF");
+        checkEqual(values[0], 'b', "testSDIFF");
+        checkEqual(values[1], 'x', "testSDIFF");
     });
 }
 
@@ -628,7 +675,7 @@ function testSDIFFSTORE() {
     client.smembers('quux', function (err, members) {
         if (err) assert.fail(err, "testSDIFFSTORE");
         members.sort();
-        assert.deepEqual(members, [ 'b', 'x' ], "testSDIFFSTORE");
+        checkDeepEqual(members, [ 'b', 'x' ], "testSDIFFSTORE");
     });
 }
 
@@ -637,15 +684,15 @@ function testSMEMBERS() {
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSMEMBERS");
-        assert.deepEqual(members, [ 'x' ], "testSMEMBERS");
+        checkDeepEqual(members, [ 'x' ], "testSMEMBERS");
     });
 
     client.sadd('foo', 'y', expectNumericReply(1, "testSMEMBERS"));
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSMEMBERS");
-        assert.equal(members.length, 2, "testSMEMBERS");
-        assert.deepEqual(members.sort(), [ 'x', 'y' ], "testSMEMBERS");
+        checkEqual(members.length, 2, "testSMEMBERS");
+        checkDeepEqual(members.sort(), [ 'x', 'y' ], "testSMEMBERS");
     });
 }
 
@@ -672,28 +719,28 @@ function testSINTER() {
 
     client.sinter('sa', 'sb', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
-        assert.equal(intersection.length, 2, "testSINTER");
-        assert.deepEqual(intersection.sort(), [ 'b', 'c' ], "testSINTER");
+        checkEqual(intersection.length, 2, "testSINTER");
+        checkDeepEqual(intersection.sort(), [ 'b', 'c' ], "testSINTER");
     });
 
     client.sinter('sb', 'sc', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
-        assert.equal(intersection.length, 2, "testSINTER");
-        assert.deepEqual(intersection.sort(), [ 'c', 'd' ], "testSINTER");
+        checkEqual(intersection.length, 2, "testSINTER");
+        checkDeepEqual(intersection.sort(), [ 'c', 'd' ], "testSINTER");
     });
 
     client.sinter('sa', 'sc', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
-        assert.equal(intersection.length, 1, "testSINTER");
-        assert.equal(intersection[0], 'c', "testSINTER");
+        checkEqual(intersection.length, 1, "testSINTER");
+        checkEqual(intersection[0], 'c', "testSINTER");
     });
 
     // 3-way
 
     client.sinter('sa', 'sb', 'sc', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
-        assert.equal(intersection.length, 1, "testSINTER");
-        assert.equal(intersection[0], 'c', "testSINTER");
+        checkEqual(intersection.length, 1, "testSINTER");
+        checkEqual(intersection[0], 'c', "testSINTER");
     });
 }
 
@@ -714,7 +761,7 @@ function testSINTERSTORE() {
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSINTERSTORE");
-        assert.deepEqual(members, [ 'c' ], "testSINTERSTORE");
+        checkDeepEqual(members, [ 'c' ], "testSINTERSTORE");
     });
 }
 
@@ -733,7 +780,7 @@ function testSUNION() {
 
     client.sunion('sa', 'sb', 'sc', function (err, union) {
         if (err) assert.fail(err, "testUNION");
-        assert.deepEqual(union.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNION");
+        checkDeepEqual(union.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNION");
     });
 }
 
@@ -752,13 +799,13 @@ function testSUNIONSTORE() {
 
     client.sunionstore('foo', 'sa', 'sb', 'sc', function (err, cardinality) {
         if (err) assert.fail(err, "testUNIONSTORE");
-        assert.equal(cardinality, 5, "testUNIONSTORE");
+        checkEqual(cardinality, 5, "testUNIONSTORE");
     });
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testUNIONSTORE");
-        assert.equal(members.length, 5, "testUNIONSTORE");
-        assert.deepEqual(members.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNIONSTORE");
+        checkEqual(members.length, 5, "testUNIONSTORE");
+        checkDeepEqual(members.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNIONSTORE");
     });
 }
 
@@ -766,24 +813,24 @@ function testTYPE() {
     client.sadd('sa', 'a', expectNumericReply(1, "testTYPE"));
     client.type('sa', function (err, type) {
         if (err) assert.fail(err, "testTYPE");
-        assert.equal(type, 'set', "testTYPE");
+        checkEqual(type, 'set', "testTYPE");
     });
 
     client.rpush('list0', 'x', expectNumericReply(1, "testTYPE"));
     client.type('list0', function (err, type) {
         if (err) assert.fail(err, "testTYPE");
-        assert.equal(type, 'list', "testTYPE");
+        checkEqual(type, 'list', "testTYPE");
     });
 
     client.set('foo', 'bar', expectTrueReply("testTYPE"));
     client.type('foo', function (err, type) {
         if (err) assert.fail(err, "testTYPE");
-        assert.equal(type, 'string', "testTYPE");
+        checkEqual(type, 'string', "testTYPE");
     });
 
     client.type('xxx', function (err, type) {
         if (err) assert.fail(err, "testTYPE");
-        assert.equal(type, 'none', "testTYPE");
+        checkEqual(type, 'none', "testTYPE");
     });
 }
 
@@ -901,12 +948,12 @@ function testSORT() {
 
     client.sort('y', 'asc', 'alpha', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        assert.deepEqual(sorted, ['a', 'b', 'c', 'd'], "testSORT");
+        checkDeepEqual(sorted, ['a', 'b', 'c', 'd'], "testSORT");
     });
 
     client.sort('y', 'desc', 'alpha', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        assert.deepEqual(sorted, ['d', 'c', 'b', 'a'], "testSORT");
+        checkDeepEqual(sorted, ['d', 'c', 'b', 'a'], "testSORT");
     });
 
     // Now try sorting numbers in a list.
@@ -914,33 +961,33 @@ function testSORT() {
 
     client.sort('x', 'asc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        assert.deepEqual(sorted, [2, 3, 4, 9], "testSORT");
+        checkDeepEqual(sorted, [2, 3, 4, 9], "testSORT");
     });
 
     client.sort('x', 'desc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        assert.deepEqual(sorted, [9, 4, 3, 2], "testSORT");
+        checkDeepEqual(sorted, [9, 4, 3, 2], "testSORT");
     });
 
     // Try sorting with a 'by' pattern.
 
     client.sort('x', 'by', 'w*', 'asc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        assert.deepEqual(sorted, [3, 9, 4, 2], "testSORT");
+        checkDeepEqual(sorted, [3, 9, 4, 2], "testSORT");
     });
 
     // Try sorting with a 'by' pattern and 1 'get' pattern.
 
     client.sort('x', 'by', 'w*', 'asc', 'get', 'o*', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        assert.deepEqual(sorted, ['foo', 'bar', 'baz', 'buz'], "testSORT");
+        checkDeepEqual(sorted, ['foo', 'bar', 'baz', 'buz'], "testSORT");
     });
 
     // Try sorting with a 'by' pattern and 2 'get' patterns.
 
     client.sort('x', 'by', 'w*', 'asc', 'get', 'o*', 'get', 'p*', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        assert.deepEqual(sorted, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
+        checkDeepEqual(sorted, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
     });
 
     // Try sorting with a 'by' pattern and 2 'get' patterns.
@@ -952,7 +999,7 @@ function testSORT() {
 
         client.lrange('bacon', 0, -1, function (err, values) {
             if (err) assert.fail(err, "testSORT");
-            assert.deepEqual(values, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
+            checkDeepEqual(values, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
         });
     });
 }
@@ -968,8 +1015,8 @@ function testBGSAVE() {
 function testLASTSAVE() {
     client.lastsave( function (err, value) {
         if (err) assert.fail(err, "testLASTSAVE");
-        assert.equal(typeof(value), 'number', "testLASTSAVE");
-        assert.ok(value > 0, "testLASTSAVE");
+        checkEqual(typeof(value), 'number', "testLASTSAVE");
+        check(value > 0, "testLASTSAVE");
     });
 }
 
@@ -1033,7 +1080,7 @@ function testZSCORE() {
 
     client.zscore('z0', 'zzzzzzz', function (err, score) {
         if (err) assert.fail(err, "testZSCORE");
-        assert.equal(score, null, "testZSCORE");
+        checkEqual(score, null, "testZSCORE");
     });
 }
 
@@ -1042,19 +1089,19 @@ function testZRANGE() {
     client.zadd('z0', 200, 'm1', expectNumericReply(1, "testZRANGE"));
     client.zadd('z0', 300, 'm2', expectNumericReply(1, "testZRANGE"));
 
-    client.zrange('z0', 0, 1000, function (err, members) {
+    client.zrange('z0', 0, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
-        assert.deepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGE");
+        checkDeepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGE");
     });
 
     client.zrange('z0', -1, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
-        assert.deepEqual(members, [ 'm2' ], "testZRANGE");
+        checkDeepEqual(members, [ 'm2' ], "testZRANGE");
     });
 
     client.zrange('z0', -2, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
-        assert.deepEqual(members, [ 'm1', 'm2' ], "testZRANGE");
+        checkDeepEqual(members, [ 'm1', 'm2' ], "testZRANGE");
     });
 }
 
@@ -1065,7 +1112,7 @@ function testZREVRANGE() {
 
     client.zrevrange('z0', 0, 1000, function (err, members) {
         if (err) assert.fail(err, "testZREVRANGE");
-        assert.deepEqual(members, [ 'm2', 'm1', 'm0' ], "testZREVRANGE");
+        checkDeepEqual(members, [ 'm2', 'm1', 'm0' ], "testZREVRANGE");
     });
 }
 
@@ -1076,17 +1123,17 @@ function testZRANGEBYSCORE() {
 
     client.zrangebyscore('z0', 200, 300, function (err, members) {
         if (err) assert.fail(err, "testZRANGEBYSCORE");
-        assert.deepEqual(members, [ 'm1', 'm2' ], "testZRANGEBYSCORE");
+        checkDeepEqual(members, [ 'm1', 'm2' ], "testZRANGEBYSCORE");
     });
 
     client.zrangebyscore('z0', 100, 1000, function (err, members) {
         if (err) assert.fail(err, "testZRANGEBYSCORE");
-        assert.deepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGEBYSCORE");
+        checkDeepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGEBYSCORE");
     });
 
     client.zrangebyscore('z0', 10000, 100000, function (err, members) {
         if (err) assert.fail(err, "testZRANGEBYSCORE");
-        assert.equal(members.length, 0, "testZRANGEBYSCORE");
+        checkEqual(members.length, 0, "testZRANGEBYSCORE");
     });
 }
 
@@ -1104,11 +1151,36 @@ function testZCOUNT() {
 }
 
 function testZINCRBY() {
-    // TODO code me
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZINCRBY"));
+    client.zincrby('z0', 1, 'a', expectNumericReply(2, "testZINCRBY"));
 }
 
+// This really should be called ZINTERSTORE.
+
 function testZINTER() {
-    // TODO code me
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZINTER"));
+    client.zadd('z0', 2, 'b', expectNumericReply(1, "testZINTER"));
+    client.zadd('z1', 3, 'a', expectNumericReply(1, "testZINTER"));
+    client.zinter('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumericReply(1, "testZINTER"));
+    client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
+        if (err) assert.fail(err, "testZINTER");
+        checkDeepEqual(members, [ 'a', 4 ], "testZRANGE");    // score=1+3
+    });
+}
+
+function testZUNION() {
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZUNION"));
+    client.zadd('z0', 2, 'b', expectNumericReply(1, "testZUNION"));
+    client.zadd('z1', 3, 'a', expectNumericReply(1, "testZUNION"));
+    client.zunion('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumericReply(2, "testZUNION"));
+    client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
+        if (err) assert.fail(err, "testZUNION");
+        check(members.length % 2 == 0, "testZUNION");
+        var set = {};
+        for (var i=0; i<members.length; i += 2)
+            set[members[i]] = members[i + 1];
+        checkDeepEqual(set, { a:4, b:2 }, "testZRANGE");    // a's score=1+3
+    });
 }
 
 function testZRANK() {
@@ -1128,10 +1200,6 @@ function testZREMRANGEBYSCORE() {
 }
 
 function testZREVRANK() {
-    // TODO code me
-}
-
-function testZUNION() {
     // TODO code me
 }
 
