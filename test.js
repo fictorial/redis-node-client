@@ -1203,10 +1203,6 @@ function testZREVRANK() {
     client.zrevrank('z0', 'c', expectNumericReply(0, "testZREVRANK"));
 }
 
-function testZREMBYRANK() {
-    // TODO code me
-}
-
 function testZREMRANGEBYRANK() {
     // TODO code me
 }
@@ -1377,7 +1373,6 @@ var allTestFunctions = [
     testZRANGEBYSCORE,
     testZRANK,
     testZREM,
-    testZREMBYRANK,
     testZREMRANGEBYRANK,
     testZREMRANGEBYSCORE,
     testZREVRANGE,
