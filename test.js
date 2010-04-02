@@ -1293,7 +1293,11 @@ function testHLEN() {
 }
 
 function testHSET() {
-    // TODO code me
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHGET"));
+    client.hget("foo", "bar", function (err, reply) {
+        if (err) assert.fail(err, "testHGET");
+        checkEqual("baz", reply, "testHGET");
+    });
 }
 
 function testHVALS() {
