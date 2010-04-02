@@ -1164,7 +1164,7 @@ function testZINTER() {
     client.zinter('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumericReply(1, "testZINTER"));
     client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZINTER");
-        checkDeepEqual(members, [ 'a', 4 ], "testZRANGE");    // score=1+3
+        checkDeepEqual(members, [ 'a', 4 ], "testZINTER");    // score=1+3
     });
 }
 
@@ -1179,7 +1179,7 @@ function testZUNION() {
         var set = {};
         for (var i=0; i<members.length; i += 2)
             set[members[i]] = members[i + 1];
-        checkDeepEqual(set, { a:4, b:2 }, "testZRANGE");    // a's score=1+3
+        checkDeepEqual(set, { a:4, b:2 }, "testZUNION");    // a's score=1+3
     });
 }
 
@@ -1204,11 +1204,38 @@ function testZREVRANK() {
 }
 
 function testZREMRANGEBYRANK() {
-    // TODO code me
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZREMRANGEBYRANK"));
+    client.zadd('z0', 2, 'b', expectNumericReply(1, "testZREMRANGEBYRANK"));
+    client.zadd('z0', 3, 'c', expectNumericReply(1, "testZREMRANGEBYRANK"));
+
+    client.zremrangebyrank('z0', -1, -1, expectNumericReply(1, "testZREMRANGEBYRANK"));
+
+    client.zrange('z0', 0, -1, 'WITHSCORES', function (err, members) {
+        if (err) assert.fail(err, "testZREMRANGEBYRANK");
+        check(members.length % 2 == 0, "testZREMRANGEBYRANK");
+        var set = {};
+        for (var i=0; i<members.length; i += 2)
+            set[members[i]] = members[i + 1];
+        checkDeepEqual(set, { a:1, b:2 }, "testZREMRANGEBYRANK");
+    });
 }
 
 function testZREMRANGEBYSCORE() {
-    // TODO code me
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZREMRANGEBYSCORE"));
+    client.zadd('z0', 2, 'b', expectNumericReply(1, "testZREMRANGEBYSCORE"));
+    client.zadd('z0', 3, 'c', expectNumericReply(1, "testZREMRANGEBYSCORE"));
+
+    // inclusive
+    client.zremrangebyscore('z0', 2, 3, expectNumericReply(2, "testZREMRANGEBYSCORE"));
+
+    client.zrange('z0', 0, -1, 'WITHSCORES', function (err, members) {
+        if (err) assert.fail(err, "testZREMRANGEBYSCORE");
+        check(members.length % 2 == 0, "testZREMRANGEBYSCORE");
+        var set = {};
+        for (var i=0; i<members.length; i += 2)
+            set[members[i]] = members[i + 1];
+        checkDeepEqual(set, { a:1 }, "testZREMRANGEBYSCORE");
+    });
 }
 
 function testHDEL() {
