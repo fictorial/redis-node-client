@@ -1284,6 +1284,15 @@ function testHKEYS() {
     });
 }
 
+function testHVALS() {
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHVALS"));
+    client.hset("foo", "quux", "doo", expectNumericReply(1, "testHVALS"));
+    client.hvals("foo", function (err, reply) {
+        if (err) assert.fail(err, "testHVALS");
+        checkDeepEqual([ "baz", "doo" ], reply.sort(), "testHVALS");
+    });
+}
+
 function testHLEN() {
     client.hlen("foo", expectNumericReply(0, "testHLEN"));
     client.hset("foo", "bar", "baz", expectNumericReply(1, "testHLEN"));
@@ -1293,15 +1302,11 @@ function testHLEN() {
 }
 
 function testHSET() {
-    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHGET"));
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHSET"));
     client.hget("foo", "bar", function (err, reply) {
-        if (err) assert.fail(err, "testHGET");
-        checkEqual("baz", reply, "testHGET");
+        if (err) assert.fail(err, "testHSET");
+        checkEqual("baz", reply, "testHSET");
     });
-}
-
-function testHVALS() {
-    // TODO code me
 }
 
 function testPSUBSCRIBE() {
