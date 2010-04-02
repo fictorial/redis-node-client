@@ -1090,8 +1090,17 @@ function testZRANGEBYSCORE() {
     });
 }
 
+// zcount is undocumented as of Thu Apr 01 20:17:58 EDT 2010 
+// zcount key startScore endScore => number of elements in [startScore, endScore]
+
 function testZCOUNT() {
-    // TODO code me
+    client.zcount('z0', 0, 100, expectNumericReply(0, "testZCOUNT"));
+
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZCOUNT"));
+    client.zcount('z0', 0, 100, expectNumericReply(1, "testZCOUNT"));
+
+    client.zadd('z0', 2, 'b', expectNumericReply(1, "testZCOUNT"));
+    client.zcount('z0', 0, 100, expectNumericReply(2, "testZCOUNT"));
 }
 
 function testZINCRBY() {
