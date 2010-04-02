@@ -1276,7 +1276,12 @@ function testHINCRBY() {
 }
 
 function testHKEYS() {
-    // TODO code me
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHKEYS"));
+    client.hset("foo", "quux", "doo", expectNumericReply(1, "testHKEYS"));
+    client.hkeys("foo", function (err, reply) {
+        if (err) assert.fail(err, "testHKEYS");
+        checkDeepEqual([ "bar", "quux" ], reply.sort(), "testHKEYS");
+    });
 }
 
 function testHLEN() {
