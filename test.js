@@ -1329,19 +1329,74 @@ function testUNSUBSCRIBE() {
     // TODO code me
 }
 
+// We cannot test the blocking behavior of BLPOP and BRPOP from a single client
+// without using a timeout.  That being said, we can test the non-blocking
+// behavior by ensuring there's an element in a list that we try to pop from.
+
 function testBLPOP() {
-    // TODO code me
+    var timeout = 1;
+
+    // Non-blocking against a single key.
+
+    client.lpush('list0', 'ABC', expectNumericReply(1, "testBLPOP"));
+    client.blpop('list0', timeout, function (err, reply) {
+        if (err) assert.fail(err, "testBLPOP");
+        checkDeepEqual([ "list0", "ABC" ], reply, "testBLPOP");
+    });
+
+    // Non-blocking against multiple keys.
+    // Returns the first one that has something in it.
+
+    client.lpush('list0', 'ABC', expectNumericReply(1, "testBLPOP"));
+    client.blpop('list1', 'list0', timeout, function (err, reply) {
+        if (err) assert.fail(err, "testBLPOP");
+        checkDeepEqual([ "list0", "ABC" ], reply, "testBLPOP");
+    });
+
+    // Non-blocking against a single key that does not exist.
+    // This should timeout after 1 second and return a null reply.
+
+    client.blpop('listX', timeout, function (err, reply) {
+        if (err) assert.fail(err, "testBLPOP");
+        checkEqual(null, reply, "testBLPOP");
+    });
 }
 
-function testBRPOPLPUSH() {
-    // TODO code me
+function testBRPOP() {
+    var timeout = 1;
+
+    // Non-blocking against a single key.
+
+    client.lpush('list0', 'ABC', expectNumericReply(1, "testBRPOP"));
+    client.lpush('list0', 'DEF', expectNumericReply(2, "testBRPOP"));
+    client.brpop('list0', timeout, function (err, reply) {
+        if (err) assert.fail(err, "testBRPOP");
+        checkDeepEqual([ "list0", "ABC" ], reply, "testBRPOP");
+    });
+
+    // Non-blocking against multiple keys.
+    // Returns the first one that has something in it.
+
+    client.lpush('list0', 'ABC', expectNumericReply(2, "testBRPOP"));
+    client.brpop('list1', 'list0', timeout, function (err, reply) {
+        if (err) assert.fail(err, "testBRPOP");
+        checkDeepEqual([ "list0", "DEF" ], reply, "testBRPOP");
+    });
+
+    // Non-blocking against a single key that does not exist.
+    // This should timeout after 1 second and return a null reply.
+
+    client.brpop('listX', timeout, function (err, reply) {
+        if (err) assert.fail(err, "testBRPOP");
+        checkEqual(null, reply, "testBRPOP");
+    });
 }
 
-var allTestFunctions = [
+var allTestFunctions = [ 
     testAUTH,
     testBGSAVE,
     testBLPOP,
-    testBRPOPLPUSH,
+    testBRPOP,
     testDBSIZE,
     testDECR,
     testDECRBY,

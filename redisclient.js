@@ -278,7 +278,7 @@ var commands = [
     "auth",
     "bgsave",
     "blpop",
-    "brpoplpush",
+    "brpop",
     "dbsize",
     "decr",
     "decrby",
