@@ -42,6 +42,8 @@ function Client(stream) {
     this.stream = stream;
     this.callbacks = [];
     this.readBuffer = '';
+    this.subscriptionMode = false;
+    this.channelCallbacks = {};
 }
 
 exports.createClient = function (port, host, noReconnects) {
@@ -97,180 +99,314 @@ function debugFilter(what) {
     return filtered;
 }
 
-Client.prototype.writeCommand = function (formattedRequest, responseCallback) {
-    if (exports.debugMode)
-        sys.debug("[SEND] " + debugFilter(formattedRequest));
+function BulkReply(length, value) {
+    this.length = length;
+    this.value = value;
+}
 
-    this.callbacks.push(responseCallback);
+BulkReply.prototype.toString = function () {
+    if (this.length == 0 || this.value == null)
+        return "$-1\r\n";
 
-    if (this.stream.readyState == "open") 
-        this.stream.write(formattedRequest);
-    else 
-        throw new Error("disconnected");
+    return "$" + this.length + CRLF + this.value + CRLF;
+};
+
+function MultiBulkReply() {
+    this.replies = [];
+};
+
+MultiBulkReply.prototype.addReply = function (reply) {
+    this.replies.push(reply);
+    return this;
+};
+
+MultiBulkReply.prototype.toString = function () {
+    if (this.replies.length == 0) 
+        return "*-1\r\n";
+
+    var str = "*" + this.replies.length + CRLF;
+
+    for (var i=0; i<this.replies.length; ++i) {
+        var thisReply = this.replies[0];
+        str += "$" + thisReply.length + CRLF + 
+                     thisReply.toString() + CRLF;
+    }
+
+    return str;
+};
+
+function InlineReply(prefix, value) {
+    this.prefix = prefix;
+    this.value = value;
+}
+
+InlineReply.prototype.toString = function () {
+    return this.prefix + this.value + CRLF;
+};
+
+function IntegerReply(value) { InlineReply.call(this, ':', value); };
+function ErrorReply(value)   { InlineReply.call(this, '-', value); };
+
+sys.inherits(IntegerReply, InlineReply);
+sys.inherits(ErrorReply, InlineReply);
+
+var nullReply = exports.nullReply = {isNull:true};
+var partialReply = exports.partialReply = {partial:true};
+
+exports.BulkReply = BulkReply;
+exports.MultiBulkReply = MultiBulkReply;
+exports.InlineReply = InlineReply;
+exports.IntegerReply = IntegerReply;
+exports.ErrorReply = ErrorReply;
+
+var okReply = new InlineReply('+', 'OK');
+var negativeOneReply = new IntegerReply(-1);
+var zeroReply = new IntegerReply(0);
+var oneReply = new IntegerReply(1);
+
+Client.prototype.parseReply = function () {
+    var reply;
+
+    switch (this.readBuffer[0]) {
+        case '$': reply = this.parseBulkReply();      break;
+        case '*': reply = this.parseMultiBulkReply(); break;
+        case '+': reply = this.parseInlineReply();    break;
+        case ':': reply = this.parseIntegerReply();   break;
+        case '-': reply = this.parseErrorReply();     break;
+        default: 
+            throw new Error("What is '" + this.readBuffer[0] + "'?");
+    }
+
+    return reply;
 };
 
 Client.prototype.handleReplies = function (chunk) {
     this.readBuffer += chunk;
 
     while (this.readBuffer.length > 0) {
-
-        // Do not shift the first callback off yet until we know
-        // there's a full reply in the read buffer.
+        // Do not shift yet; could be in subscription mode or
+        // there could be just a partial reply in the read buffer.
 
         var callback = this.callbacks[0];  
 
         if (exports.debugMode) {
+            sys.debug("");
             sys.debug("==================================================");
             sys.debug("from command: " + debugFilter(callback.commandBuffer));
-            sys.debug("recv buffer: " + debugFilter(this.readBuffer.substring(0, 40)) + " ...");
+            sys.debug("read buffer: " + debugFilter(this.readBuffer.substring(0, 40)) + " ...");
         }
 
-        var reply, error;
+        var reply = this.parseReply();
 
-        switch (this.readBuffer[0]) {
-            case '$': reply = this.parseBulkReply();      break;
-            case '*': reply = this.parseMultiBulkReply(); break;
-            case '+': reply = this.parseInlineReply();    break;
-            case ':': reply = this.parseIntegerReply();   break;
-            case '-': error = this.parseErrorReply();     break;
-            default: throw new Error("What is '" + this.readBuffer[0] + "'?");
-        }
+        if (reply.partial)
+            break;
+            
+        if (reply instanceof ErrorReply) {
+            if (exports.debugMode) 
+                sys.debug("error: " + JSON.stringify(error));
 
-        if (!(reply instanceof PartialReply)) {
-            // Some full reply or error was read from the reply buffer.
+            callback(error, null);
+        } else {
+            var processedReply = processReply(callback.commandName, reply);
 
-            if (reply != null) {
-                var processedReply = processReply(callback.commandName, reply);
+            if (exports.debugMode) 
+                sys.debug("reply: " + JSON.stringify(processedReply));
 
-                if (exports.debugMode) 
-                    sys.debug("reply: " + JSON.stringify(processedReply));
+            // The only type of reply/message we should receive while in
+            // subscription mode is a multi-bulk representing some published
+            // message on a channel/class we've subscribed to.
+
+            if (!this.subscriptionMode && 
+                reply instanceof MultiBulkReply && 
+                processedReply[0].value === 'subscribe' && 
+                processedReply[2].value > 0) {
+                
+                // This client is subscribed to one or more channels.
+                // Enter subscription mode.
+
+                this.subscriptionMode = true;
+
+            } else if (this.subscriptionMode) {
+                if (reply instanceof MultiBulkReply &&
+                    processedReply[0] === 'message') {
+
+                    var channel = processedReply[1];
+                    var message = processedReply[2];
+
+                    var channelCallback = this.channelCallbacks[channel];
+                    channelCallback(channel, message);
+                }
+            } else {
+                // When not in subscription mode, there will be 1 callback per
+                // request sent (asynchronously) to Redis.  Call it back with
+                // the result/reply now.
 
                 callback(null, processedReply);
-            } else if (error != null) {
-                if (exports.debugMode) {
-                    sys.debug("error: " + JSON.stringify(error));
-                    sys.debug("callback = " + callback);
-                }
+            }
+        } 
 
-                callback(error, null);
-            } 
-
-            this.callbacks.shift();
-        }
+        this.callbacks.shift();
     }
 };
 
-function PartialReply() {}
-exports.PartialReply = PartialReply;
-
 Client.prototype.parseBulkReply = function () {
     var crlfIndex = this.readBuffer.indexOf(CRLF);
-    if (crlfIndex == -1) return new PartialReply();
+    if (crlfIndex == -1) 
+        return partialReply;
 
-    var replyLength = parseInt(this.readBuffer.substring(1, crlfIndex), 10);
+    var bodyLength = parseInt(this.readBuffer.substring(1, crlfIndex), 10);
 
-    if (replyLength > 0) {
-        var reply;
-        if (this.readBuffer.length - crlfIndex + CRLF_LEN < replyLength)
-            return new PartialReply();
-        reply = this.readBuffer.substr(crlfIndex + CRLF_LEN, replyLength);
-        var nextReplyIndex = crlfIndex + CRLF_LEN + replyLength + CRLF_LEN;
+    if (bodyLength > 0) {
+        var body;
+
+        if (this.readBuffer.length - crlfIndex + CRLF_LEN < bodyLength)
+            return partialReply;
+
+        body = this.readBuffer.substr(crlfIndex + CRLF_LEN, bodyLength);
+
+        var nextReplyIndex = crlfIndex + CRLF_LEN + bodyLength + CRLF_LEN;
         this.readBuffer = this.readBuffer.substring(nextReplyIndex);
-        return reply;
+
+        return new BulkReply(bodyLength, body);
     }
 
     this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
-    return null;
+
+    return nullReply;
 };
 
 Client.prototype.parseMultiBulkReply = function () {
     var crlfIndex = this.readBuffer.indexOf(CRLF);
-    if (crlfIndex == -1) return new PartialReply();
+    if (crlfIndex == -1) 
+        return partialReply;
 
     var count = parseInt(this.readBuffer.substring(1, crlfIndex), 10);
     this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
-    if (count <= 0) return null;   // empty/missing/none
+    if (count == -1) 
+        return nullReply;
 
-    var replyParts = [];
+    var reply = new MultiBulkReply();
+    if (count == 0)
+        return reply;
+
     for (var i=0; i<count; ++i) {
-        var part = this.parseBulkReply();
+        var thisReply = this.parseReply();
 
-        // The receive buffer might contain a partial multi-bulk reply but
+        // The read buffer might contain a partial multi-bulk reply but
         // we're removing the bulk reply parts from the front as we parse the
         // multi-bulk reply.  If a full multi-bulk reply is not present, we put
-        // the partial multi-bulk reply back into the receive buffer.
+        // the partial multi-bulk reply back into the read buffer.
 
-        if (part instanceof PartialReply) {
-            var origReply = "*" + count + CRLF;
-            for (var i=0; i<replyParts.length; ++i) {
-                var origValue = replyParts[i].toString();
-                origReply += "$" + origValue.length + CRLF + origValue + CRLF;
-            }
-            this.readBuffer = origReply + this.readBuffer;
-            return new PartialReply();
+        if (thisReply.partial) {
+            this.readBuffer = reply.toString() + this.readBuffer;
+            return thisReply;
         }
 
-        replyParts.push(part);
+        reply.addReply(thisReply);
     }
 
-    return replyParts;
+    return reply;
 };
 
 Client.prototype.parseInlineReply = function () {
     var crlfIndex = this.readBuffer.indexOf(CRLF);
-    if (crlfIndex == -1) return new PartialReply();
-    var reply = this.readBuffer.substring(1, crlfIndex);
+    if (crlfIndex == -1) 
+        return partialReply;
+
+    var prefix = this.readBuffer[0];
+    var body = this.readBuffer.substring(1, crlfIndex);
     this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
-    return reply === 'OK' ? true : reply;
+
+    if (prefix == '+' && body == 'OK')      // optimize for common case
+        return okReply;
+
+    return new InlineReply(prefix, body);
 };
 
 Client.prototype.parseIntegerReply = function () {
     var crlfIndex = this.readBuffer.indexOf(CRLF);
-    if (crlfIndex == -1) return new PartialReply();
-    var reply = parseInt(this.readBuffer.substring(1, crlfIndex), 10);
+    if (crlfIndex == -1) 
+        return partialReply;
+
+    var body = this.readBuffer.substring(1, crlfIndex);
     this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
-    return reply;
+    var value = parseInt(body, 10);
+
+    if (isNaN(value))
+        throw new Error("Protocol error? NaN for integer");
+
+    switch (value) {
+        case -1: return negativeOneReply;
+        case  0: return zeroReply;
+        case  1: return oneReply;
+    }
+
+    return new IntegerReply(value);
 };
 
 Client.prototype.parseErrorReply = function () {
     var crlfIndex = this.readBuffer.indexOf(CRLF);
-    if (crlfIndex == -1) return new PartialReply();
-    var reply = this.readBuffer.substring(1, crlfIndex);
+    if (crlfIndex == -1) 
+        return partialReply;
+
+    var body = this.readBuffer.substring(1, crlfIndex);
     this.readBuffer = this.readBuffer.substring(crlfIndex + CRLF_LEN);
-    return reply;
+
+    return new ErrorReply(body);
 };
 
 function maybeAsNumber(str) {
     var value = parseInt(str, 10);
-    if (isNaN(value)) value = parseFloat(str);
-    if (isNaN(value)) return str;
+
+    if (isNaN(value)) 
+        value = parseFloat(str);
+
+    if (isNaN(value)) 
+        return str;
+
     return value;
 }
 
 function processReply(commandName, reply) {
-    if (commandName === 'info') {
+    if (commandName === 'info' && reply instanceof BulkReply) {
         var info = {};
-
-        reply.split(/\r\n/g).forEach(function (line) {
+        reply.value.split(/\r\n/g).forEach(function (line) {
             var parts = line.split(':');
             if (parts.length === 2)
                 info[parts[0]] = maybeAsNumber(parts[1]);
         });
-
         return info;
     }
 
-    if (commandName == 'hgetall' && reply.length % 2 == 0) {
+    if (commandName === 'hgetall' && 
+        (reply instanceof MultiBulkReply) &&
+        reply.replies.length % 2 === 0) {
+
+        sys.debug("converting...");
+
         var hash = {};
-        for (var i=0; i<reply.length; i += 2) 
-            hash[reply[i]] = reply[i + 1];
+        for (var i=0; i<reply.replies.length; i += 2) 
+            hash[reply.replies[i].value] = maybeAsNumber(reply.replies[i + 1].value);
         return hash;
     }
 
     if (commandName.match(/lastsave|([sz]card)|zscore/)) 
-        return maybeAsNumber(reply);
+        return maybeAsNumber(reply.value);
 
-    return reply;
+    if (reply instanceof MultiBulkReply) {
+        var values = [];
+        for (var i=0; i<reply.replies.length; ++i)
+            values.push(maybeAsNumber(reply.replies[i].value));
+        return values;
+    }
+
+    if (reply instanceof InlineReply && reply.value === 'OK')
+        return true;
+
+    if (reply == nullReply)
+        return null;
+
+    return reply.value;
 }
 
 var commands = [ 
@@ -351,7 +487,7 @@ var commands = [
     "sunionstore",
     "ttl",
     "type",
-    "unsubcribe",
+    "unsubscribe",
     "zadd",
     "zcard",
     "zcount",
@@ -372,18 +508,25 @@ var commands = [
 
 commands.forEach(function (commandName) {
     Client.prototype[commandName] = function () {
+        if (this.subscriptionMode && !commandName.match(/p?(un)?subscribe/)) 
+            throw new Error("clients subscribed to >= 1 channels may " + 
+                            "only call (p)subscribe/(p)unsubscribe.");
+
         var callback = null;
         var argCount = arguments.length;
 
         if (typeof(arguments[argCount - 1]) == 'function') {
             callback = arguments[argCount - 1];
-            argCount--;
-        } else 
+            --argCount;
+        } else {
             callback = function () {};
+        }
 
-        var buffer = "*" + (1 + argCount) + CRLF +
-                     "$" + commandName.length + CRLF +
-                     commandName.toUpperCase() + CRLF;
+        // All requests are formatted as multi-bulk.
+
+        var buffer = "*" + (1 + argCount)            + CRLF +
+                     "$" + commandName.length        + CRLF +
+                           commandName.toUpperCase() + CRLF;
 
         for (var i=0; i < argCount; ++i) {
             var arg = arguments[i].toString();
@@ -392,10 +535,60 @@ commands.forEach(function (commandName) {
 
         if (callback) {
             callback.commandName = commandName;
-            if (exports.debugMode) callback.commandBuffer = buffer;
+
+            if (exports.debugMode) 
+                callback.commandBuffer = buffer;
         }
         
-        return this.writeCommand(buffer, callback);
+        if (exports.debugMode)
+            sys.debug("[SEND] " + debugFilter(buffer));
+
+        // Will this work when we have expirations?
+        this.callbacks.push(callback);
+
+        if (this.stream.readyState == "open") 
+            this.stream.write(buffer);
+        else 
+            throw new Error("disconnected");
     };
 });
+
+// Wraps 'subscribe' and 'psubscribe' methods to set "subscription mode".
+//
+// "A client subscribed to 1 or more classes should NOT issue other commands
+// other than SUBSCRIBE [and PSUBSCRIBE] and UNSUBSCRIBE [and PUNSUBSCRIBE],
+// but can subscribe or unsubscribe to other classes dynamically"
+// -- http://code.google.com/p/redis/wiki/PublishSubscribe
+//
+// 'nameOrPattern' is a channel name like "hello" or a pattern like 
+// "h*llo", "h?llo", or "h[ae]llo".
+
+Client.prototype.subscribeTo = function (nameOrPattern, callback) {
+    // Already subscribed?
+ 
+    if (typeof(this.channelCallbacks[nameOrPattern]) === 'function')
+        return;
+
+    if (typeof(callback) !== 'function')
+        throw new Error("requires a callback function");
+
+    this.channelCallbacks[nameOrPattern] = callback;
+    var method = nameOrPattern.match(/[\*\?\[]/) ? "psubscribe" : "subscribe";
+    this[method](nameOrPattern);
+};
+
+Client.prototype.unsubscribeFrom = function (nameOrPattern) {
+    // Not subscribed?
+
+    if (typeof(this.channelCallbacks[nameOrPattern]) === 'undefined')
+        return;
+
+    var self = this;
+    var method = nameOrPattern.match(/[\*\?\[]/) ? "punsubscribe" : "unsubscribe";
+    this[method](nameOrPattern, function (err, replySubCount) {
+        delete self.channelCallbacks[nameOrPattern];
+        if (replySubCount === 0) 
+            self.subscriptionMode = false;
+    });
+};
 
