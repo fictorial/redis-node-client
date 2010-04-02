@@ -1216,7 +1216,7 @@ function testZREMRANGEBYRANK() {
         var set = {};
         for (var i=0; i<members.length; i += 2)
             set[members[i]] = members[i + 1];
-        checkDeepEqual(set, { a:1, b:2 }, "testZREMRANGEBYRANK");
+        checkDeepEqual({ a:1, b:2 }, set, "testZREMRANGEBYRANK");
     });
 }
 
@@ -1234,7 +1234,7 @@ function testZREMRANGEBYSCORE() {
         var set = {};
         for (var i=0; i<members.length; i += 2)
             set[members[i]] = members[i + 1];
-        checkDeepEqual(set, { a:1 }, "testZREMRANGEBYSCORE");
+        checkDeepEqual({ a:1 }, set, "testZREMRANGEBYSCORE");
     });
 }
 
@@ -1259,7 +1259,12 @@ function testHGET() {
 }
 
 function testHGETALL() {
-    // TODO code me
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHGETALL"));
+    client.hset("foo", "quux", "doo", expectNumericReply(1, "testHGETALL"));
+    client.hgetall("foo", function (err, reply) {
+        if (err) assert.fail(err, "testHGETALL");
+        checkDeepEqual({ bar:"baz", quux:"doo" }, reply, "testHGETALL");
+    });
 }
 
 function testHINCRBY() {
