@@ -1292,14 +1292,6 @@ function testHLEN() {
     client.hlen("foo", expectNumericReply(2, "testHLEN"));
 }
 
-function testHMGET() {
-    // TODO code me
-}
-
-function testHMSET() {
-    // TODO code me
-}
-
 function testHSET() {
     // TODO code me
 }
@@ -1358,8 +1350,6 @@ var allTestFunctions = [
     testHINCRBY,
     testHKEYS,
     testHLEN,
-    testHMGET,
-    testHMSET,
     testHSET,
     testHVALS,
     testINCR,
