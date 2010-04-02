@@ -40,9 +40,8 @@ var CRLF = "\r\n",
 
 function Client(stream) {
     this.stream = stream;
-    this.callbacks = [];
     this.readBuffer = '';
-    this.subscriptionMode = false;
+    this.callbacks = [];
     this.channelCallbacks = {};
 }
 
@@ -180,72 +179,105 @@ Client.prototype.parseReply = function () {
     return reply;
 };
 
+var qmarkRE = /\?/g;
+var starRE  = /\*/g;
+var dotRE   = /\./g;
+
+function fnmatch (pattern, test) {
+    var newPattern = pattern.replace(dotRE, '(\\.)')
+                            .replace(qmarkRE, '(.)')
+                            .replace(starRE, '(.*?)');
+    return (new RegExp(newPattern)).test(test);
+}
+
 Client.prototype.handleReplies = function (chunk) {
     this.readBuffer += chunk;
 
     while (this.readBuffer.length > 0) {
-        // Do not shift yet; could be in subscription mode or
-        // there could be just a partial reply in the read buffer.
-
-        var callback = this.callbacks[0];  
-
         if (exports.debugMode) {
             sys.debug("");
             sys.debug("==================================================");
-            sys.debug("from command: " + debugFilter(callback.commandBuffer));
-            sys.debug("read buffer: " + debugFilter(this.readBuffer.substring(0, 40)) + " ...");
+            sys.debug("read buffer: " + debugFilter(this.readBuffer.substring(0, 64)) + " ...");
         }
 
         var reply = this.parseReply();
 
-        if (reply.partial)
+        // Not a full reply in the buffer? Leave it alone.
+
+        if (reply.partial) {
+            if (exports.debugMode) 
+                sys.debug("partial");
             break;
+        }
+
+        // Redis error reply?
             
         if (reply instanceof ErrorReply) {
             if (exports.debugMode) 
-                sys.debug("error: " + JSON.stringify(error));
+                sys.debug("error: " + reply.value);
 
-            callback(error, null);
-        } else {
-            var processedReply = processReply(callback.commandName, reply);
-
-            if (exports.debugMode) 
-                sys.debug("reply: " + JSON.stringify(processedReply));
-
-            // The only type of reply/message we should receive while in
-            // subscription mode is a multi-bulk representing some published
-            // message on a channel/class we've subscribed to.
-
-            if (!this.subscriptionMode && 
-                reply instanceof MultiBulkReply && 
-                processedReply[0].value === 'subscribe' && 
-                processedReply[2].value > 0) {
-                
-                // This client is subscribed to one or more channels.
-                // Enter subscription mode.
-
-                this.subscriptionMode = true;
-
-            } else if (this.subscriptionMode) {
-                if (reply instanceof MultiBulkReply &&
-                    processedReply[0] === 'message') {
-
-                    var channel = processedReply[1];
-                    var message = processedReply[2];
-
-                    var channelCallback = this.channelCallbacks[channel];
-                    channelCallback(channel, message);
-                }
-            } else {
-                // When not in subscription mode, there will be 1 callback per
-                // request sent (asynchronously) to Redis.  Call it back with
-                // the result/reply now.
-
-                callback(null, processedReply);
-            }
+            this.callbacks.shift()(error);
+            continue;
         } 
 
-        this.callbacks.shift();
+        // PUBSUB published message?  
+        // NB: 3 => [ "message","channel","payload" ]
+
+        if (reply instanceof MultiBulkReply && 
+            reply.replies.length == 3 && 
+            reply.replies[0].value === 'message' &&
+            Object.getOwnPropertyNames(this.channelCallbacks).length > 0) {
+
+            var channelNameOrPattern = reply.replies[1].value;
+            var channelCallback = this.channelCallbacks[channelNameOrPattern];
+
+            if (typeof(channelCallback) == 'undefined') {
+                // No 1:1 channel name match. 
+                //
+                // Perhaps the subscription was for a pattern (PSUBSCRIBE)?
+                // Redis does not send the pattern that matched from an
+                // original PSUBSCRIBE request.  It sends the (fn)matching
+                // channel name instead.  Thus, let's try to fnmatch the
+                // channel the message was published to/on to a subscribed
+                // pattern, and callback the associated function.
+                // 
+                // A -> Redis     PSUBSCRIBE foo.*
+                // B -> Redis     PUBLISH foo.bar hello
+                // Redis -> A     MESSAGE foo.bar hello   (no pattern specified)
+
+                var channelNamesOrPatterns = 
+                    Object.getOwnPropertyNames(this.channelCallbacks);
+
+                for (var i=0; i < channelNamesOrPatterns.length; ++i) {
+                    var thisNameOrPattern = channelNamesOrPatterns[i];
+                    if (fnmatch(thisNameOrPattern, channelNameOrPattern)) {
+                        channelCallback = this.channelCallbacks[thisNameOrPattern];
+                        break;
+                    }
+                }
+            }
+
+            if (typeof(channelCallback) === 'function') {
+                // Good, we found a function to callback.
+
+                var payload = reply.replies[2].value;
+                channelCallback(channelNameOrPattern, payload);
+            }
+
+            continue;
+        }
+
+        // Non-PUBSUB reply (e.g. GET command reply).
+
+        var callback = this.callbacks.shift();
+        var processedReply = processReply(callback.commandName, reply);
+
+        if (exports.debugMode) {
+            sys.debug("reply: " + JSON.stringify(processedReply));
+            sys.debug("from command: " + debugFilter(callback.commandBuffer));
+        }
+
+        callback(null, processedReply);   // null => no Redis error.
     }
 };
 
@@ -381,8 +413,6 @@ function processReply(commandName, reply) {
     if (commandName === 'hgetall' && 
         (reply instanceof MultiBulkReply) &&
         reply.replies.length % 2 === 0) {
-
-        sys.debug("converting...");
 
         var hash = {};
         for (var i=0; i<reply.replies.length; i += 2) 
@@ -553,19 +583,21 @@ commands.forEach(function (commandName) {
     };
 });
 
-// Wraps 'subscribe' and 'psubscribe' methods to set "subscription mode".
-//
-// "A client subscribed to 1 or more classes should NOT issue other commands
-// other than SUBSCRIBE [and PSUBSCRIBE] and UNSUBSCRIBE [and PUNSUBSCRIBE],
-// but can subscribe or unsubscribe to other classes dynamically"
-// -- http://code.google.com/p/redis/wiki/PublishSubscribe
+// Wraps 'subscribe' and 'psubscribe' methods to manage a single
+// callback function per subscribed channel name/pattern.
 //
 // 'nameOrPattern' is a channel name like "hello" or a pattern like 
 // "h*llo", "h?llo", or "h[ae]llo".
+//
+// 'callback' is a function that is called back with 2 args: 
+// channel name/pattern and message payload.
+//
+// Note: You are not permitted to do anything but subscribe to 
+// additional channels or unsubscribe from subscribed channels 
+// when there are >= 1 subscriptions active.  Should you need to
+// issue other commands, use a second client instance.
 
 Client.prototype.subscribeTo = function (nameOrPattern, callback) {
-    // Already subscribed?
- 
     if (typeof(this.channelCallbacks[nameOrPattern]) === 'function')
         return;
 
@@ -573,22 +605,24 @@ Client.prototype.subscribeTo = function (nameOrPattern, callback) {
         throw new Error("requires a callback function");
 
     this.channelCallbacks[nameOrPattern] = callback;
-    var method = nameOrPattern.match(/[\*\?\[]/) ? "psubscribe" : "subscribe";
+
+    var method = nameOrPattern.match(/[\*\?\[]/) 
+               ? "psubscribe" 
+               : "subscribe";
+
     this[method](nameOrPattern);
 };
 
 Client.prototype.unsubscribeFrom = function (nameOrPattern) {
-    // Not subscribed?
-
     if (typeof(this.channelCallbacks[nameOrPattern]) === 'undefined')
         return;
 
-    var self = this;
-    var method = nameOrPattern.match(/[\*\?\[]/) ? "punsubscribe" : "unsubscribe";
-    this[method](nameOrPattern, function (err, replySubCount) {
-        delete self.channelCallbacks[nameOrPattern];
-        if (replySubCount === 0) 
-            self.subscriptionMode = false;
-    });
+    delete this.channelCallbacks[nameOrPattern];
+
+    var method = nameOrPattern.match(/[\*\?\[]/) 
+               ? "punsubscribe" 
+               : "unsubscribe";
+
+    this[method](nameOrPattern);
 };
 

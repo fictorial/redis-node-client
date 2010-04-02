@@ -1411,30 +1411,33 @@ function testPUBLISH() {
 }
 
 function testSUBSCRIBEandPUBLISH() {
-    var receivedMessage = false;
-    var messagePayload  = "Hello there!";
-    
-    client.subscribeTo("debugChannel", function (channel, message) {
-        checkEqual(channel, "debugChannel", "testSUBSCRIBEandPUBLISH");
-        checkEqual(message, messagePayload, "testSUBSCRIBEandPUBLISH");
-        receivedMessage = true;
+    var messagePayload = "I'm a lumberjack!";
+    var channelName = "Monty";     
+
+    var messageWasReceived = false;
+    client.subscribeTo(channelName, function (channel, message) {
+        checkEqual(channel, channelName, "testSUBSCRIBEandPUBLISH a0");
+        checkEqual(message, messagePayload, "testSUBSCRIBEandPUBLISH a1");
+        messageWasReceived = true;
     }); 
 
     // Create a 2nd client that publishes a message.
 
     var publisher = redisclient.createClient();
     publisher.stream.addListener("connect", function () {
-        publisher.publish("debugChannel", messagePayload, function (err, reply) {
-            if (err) assert.fail(err, "testSUBSCRIBEandPUBLISH 0");
-            expectNumber(1, "testSUBSCRIBEandPUBLISH 1");
+        publisher.publish(channelName, messagePayload, function (err, reply) {
+            if (err) assert.fail(err, "testSUBSCRIBEandPUBLISH b0");
+            expectNumber(1, "testSUBSCRIBEandPUBLISH b1");
 
             // At this point, any subscribed clients have been notified of the
             // published message.  Check that the subscription mode channel
             // callback was called back for the message but wait until the next
             // tick to give Node.js some time to receive the message and then 
+            // call the client's "data" listener which will process the reply
+            // and invoke the callback for the channel subscription.
             
             process.nextTick(function () {
-                check(receivedMessage, "testSUBSCRIBEandPUBLISH 3");
+                check(messageWasReceived, "testSUBSCRIBEandPUBLISH b2");
             });
         });
     });
@@ -1504,99 +1507,99 @@ function testBRPOP() {
 }
 
 var allTestFunctions = [
-    testAUTH,
-    testBGSAVE,
-    testBLPOP,
-    testBRPOP,
-    testDBSIZE,
-    testDECR,
-    testDECRBY,
-    testDEL,
-    testEXISTS,
-    testEXPIRE,
-    testFLUSHALL,
-    testFLUSHDB,
-    testGET,
-    testGETSET,
-    testHDEL, 
-    testHEXISTS,
-    testHGET,
-    testHGETALL,
-    testHINCRBY,
-    testHKEYS,
-    testHLEN,
-    testHSET,
-    testHVALS,
-    testINCR,
-    testINCRBY,
-    testINFO,
-    testKEYS,
-    testLASTSAVE,
-    testLINDEX,
-    testLLEN,
-    testLPOP,
-    testLPUSH,
-    testLRANGE,
-    testLREM,
-    testLSET,
-    testLTRIM,
-    testMGET,
-    testMOVE,
-    testMSET,
-    testMSETNX,
-    testParseBulkReply,
-    testParseErrorReply,
-    testParseInlineReply,
-    testParseIntegerReply,
-    testParseMultiBulkReply,
-    testPSUBSCRIBE,
-    testPUBLISH,
-    testPUNSUBSCRIBE,
-    testRANDOMKEY,
-    testRENAME,
-    testRENAMENX,
-    testRPOP,
-    testRPOPLPUSH,
-    testRPUSH,
-    testSADD,
-    testSAVE,
-    testSCARD,
-    testSDIFF,
-    testSDIFFSTORE,
-    testSELECT,
-    testSET,
-    testSETANDGETMULTIBYTE,
-    testSETNX,
-    testSHUTDOWN,
-    testSINTER,
-    testSINTERSTORE,
-    testSISMEMBER,
-    testSMEMBERS,
-    testSMOVE,
-    testSORT,
-    testSPOP,
-    testSREM,
-    testSUBSCRIBE,
-    testSUNION,
-    testSUNIONSTORE,
-    testTTL,
-    testTYPE,
-    testUNSUBSCRIBE,
-    testZADD,
-    testZCARD,
-    testZCOUNT,
-    testZINCRBY,
-    testZINTER,
-    testZRANGE,
-    testZRANGEBYSCORE,
-    testZRANK,
-    testZREM,
-    testZREMRANGEBYRANK,
-    testZREMRANGEBYSCORE,
-    testZREVRANGE,
-    testZREVRANK,
-    testZSCORE,
-    testZUNION,
+//    testAUTH,
+//    testBGSAVE,
+//    testBLPOP,
+//    testBRPOP,
+//    testDBSIZE,
+//    testDECR,
+//    testDECRBY,
+//    testDEL,
+//    testEXISTS,
+//    testEXPIRE,
+//    testFLUSHALL,
+//    testFLUSHDB,
+//    testGET,
+//    testGETSET,
+//    testHDEL, 
+//    testHEXISTS,
+//    testHGET,
+//    testHGETALL,
+//    testHINCRBY,
+//    testHKEYS,
+//    testHLEN,
+//    testHSET,
+//    testHVALS,
+//    testINCR,
+//    testINCRBY,
+//    testINFO,
+//    testKEYS,
+//    testLASTSAVE,
+//    testLINDEX,
+//    testLLEN,
+//    testLPOP,
+//    testLPUSH,
+//    testLRANGE,
+//    testLREM,
+//    testLSET,
+//    testLTRIM,
+//    testMGET,
+//    testMOVE,
+//    testMSET,
+//    testMSETNX,
+//    testParseBulkReply,
+//    testParseErrorReply,
+//    testParseInlineReply,
+//    testParseIntegerReply,
+//    testParseMultiBulkReply,
+//    testPSUBSCRIBE,
+//    testPUBLISH,
+//    testPUNSUBSCRIBE,
+//    testRANDOMKEY,
+//    testRENAME,
+//    testRENAMENX,
+//    testRPOP,
+//    testRPOPLPUSH,
+//    testRPUSH,
+//    testSADD,
+//    testSAVE,
+//    testSCARD,
+//    testSDIFF,
+//    testSDIFFSTORE,
+//    testSELECT,
+//    testSET,
+//    testSETANDGETMULTIBYTE,
+//    testSETNX,
+//    testSHUTDOWN,
+//    testSINTER,
+//    testSINTERSTORE,
+//    testSISMEMBER,
+//    testSMEMBERS,
+//    testSMOVE,
+//    testSORT,
+//    testSPOP,
+//    testSREM,
+//    testSUBSCRIBE,
+//    testSUNION,
+//    testSUNIONSTORE,
+//    testTTL,
+//    testTYPE,
+//    testUNSUBSCRIBE,
+//    testZADD,
+//    testZCARD,
+//    testZCOUNT,
+//    testZINCRBY,
+//    testZINTER,
+//    testZRANGE,
+//    testZRANGEBYSCORE,
+//    testZRANK,
+//    testZREM,
+//    testZREMRANGEBYRANK,
+//    testZREMRANGEBYSCORE,
+//    testZREVRANGE,
+//    testZREVRANK,
+//    testZSCORE,
+//    testZUNION,
 
     testSUBSCRIBEandPUBLISH,
 ];
