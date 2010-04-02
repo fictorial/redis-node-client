@@ -1239,11 +1239,15 @@ function testZREMRANGEBYSCORE() {
 }
 
 function testHDEL() {
-    // TODO code me
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHDEL"));
+    client.hdel("foo", "bar", expectNumericReply(1, "testHDEL"));
+    client.hdel("foo", "bar", expectNumericReply(0, "testHDEL"));
 }
 
 function testHEXISTS() {
-    // TODO code me
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHEXISTS"));
+    client.hexists("foo", "bar", expectNumericReply(1, "testHEXISTS"));
+    client.hexists("foo", "baz", expectNumericReply(0, "testHEXISTS"));
 }
 
 function testHGET() {
