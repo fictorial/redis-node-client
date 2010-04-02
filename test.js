@@ -1268,7 +1268,11 @@ function testHGETALL() {
 }
 
 function testHINCRBY() {
-    // TODO code me
+    client.hincrby("foo", "bar", 1, expectNumericReply(1, "testHINCRBY"));
+    client.hget("foo", "bar", expectNumericReply(1, "testHINCRBY"));
+
+    client.hincrby("foo", "bar", 1, expectNumericReply(2, "testHINCRBY"));
+    client.hget("foo", "bar", expectNumericReply(2, "testHINCRBY"));
 }
 
 function testHKEYS() {
