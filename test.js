@@ -1285,7 +1285,11 @@ function testHKEYS() {
 }
 
 function testHLEN() {
-    // TODO code me
+    client.hlen("foo", expectNumericReply(0, "testHLEN"));
+    client.hset("foo", "bar", "baz", expectNumericReply(1, "testHLEN"));
+    client.hlen("foo", expectNumericReply(1, "testHLEN"));
+    client.hset("foo", "quux", "doo", expectNumericReply(1, "testHLEN"));
+    client.hlen("foo", expectNumericReply(2, "testHLEN"));
 }
 
 function testHMGET() {
