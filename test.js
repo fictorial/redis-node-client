@@ -1184,7 +1184,23 @@ function testZUNION() {
 }
 
 function testZRANK() {
-    // TODO code me
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZRANK"));
+    client.zadd('z0', 2, 'b', expectNumericReply(1, "testZRANK"));
+    client.zadd('z0', 3, 'c', expectNumericReply(1, "testZRANK"));
+
+    client.zrank('z0', 'a', expectNumericReply(0, "testZRANK"));
+    client.zrank('z0', 'b', expectNumericReply(1, "testZRANK"));
+    client.zrank('z0', 'c', expectNumericReply(2, "testZRANK"));
+}
+
+function testZREVRANK() {
+    client.zadd('z0', 1, 'a', expectNumericReply(1, "testZREVRANK"));
+    client.zadd('z0', 2, 'b', expectNumericReply(1, "testZREVRANK"));
+    client.zadd('z0', 3, 'c', expectNumericReply(1, "testZREVRANK"));
+
+    client.zrevrank('z0', 'a', expectNumericReply(2, "testZREVRANK"));
+    client.zrevrank('z0', 'b', expectNumericReply(1, "testZREVRANK"));
+    client.zrevrank('z0', 'c', expectNumericReply(0, "testZREVRANK"));
 }
 
 function testZREMBYRANK() {
@@ -1196,10 +1212,6 @@ function testZREMRANGEBYRANK() {
 }
 
 function testZREMRANGEBYSCORE() {
-    // TODO code me
-}
-
-function testZREVRANK() {
     // TODO code me
 }
 
