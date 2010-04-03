@@ -53,7 +53,6 @@ exports.createClient = function (port, host, noReconnects) {
     var client = new Client(stream);
 
     stream.addListener("connect", function () {
-        stream.setEncoding('binary');
         stream.setNoDelay();
         stream.setTimeout(0);
 
