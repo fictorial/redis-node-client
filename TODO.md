@@ -1,7 +1,5 @@
 ## ASAP
 
-- 'tcp' is now 'net'
-
 - Use buffer objects instead of strings
     - Use UTF8 slices where strings are needed
 

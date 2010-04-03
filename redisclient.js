@@ -31,7 +31,7 @@
 
 exports.debugMode = false;
 
-var tcp = require("tcp"),
+var net = require("net"),
     sys = require("sys");
 
 var CRLF = "\r\n",
@@ -49,7 +49,7 @@ exports.createClient = function (port, host, noReconnects) {
     port = port || 6379;
     host = host || '127.0.0.1';
 
-    var stream = new tcp.createConnection(port, host);
+    var stream = new net.createConnection(port, host);
     var client = new Client(stream);
 
     stream.addListener("connect", function () {
