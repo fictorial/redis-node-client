@@ -1410,11 +1410,12 @@ function testPUBLISH() {
     client.publish("#redis", "Hello, world!", expectNumber(0, "testPUBLISH"));
 }
 
+var messageWasReceived = false;
+
 function testSUBSCRIBEandPUBLISH() {
     var messagePayload = "I'm a lumberjack!";
     var channelName = "Monty";     
 
-    var messageWasReceived = false;
     client.subscribeTo(channelName, function (channel, message) {
         checkEqual(channel, channelName, "testSUBSCRIBEandPUBLISH a0");
         checkEqual(message, messagePayload, "testSUBSCRIBEandPUBLISH a1");
@@ -1428,17 +1429,6 @@ function testSUBSCRIBEandPUBLISH() {
         publisher.publish(channelName, messagePayload, function (err, reply) {
             if (err) assert.fail(err, "testSUBSCRIBEandPUBLISH b0");
             expectNumber(1, "testSUBSCRIBEandPUBLISH b1");
-
-            // At this point, any subscribed clients have been notified of the
-            // published message.  Check that the subscription mode channel
-            // callback was called back for the message but wait until the next
-            // tick to give Node.js some time to receive the message and then 
-            // call the client's "data" listener which will process the reply
-            // and invoke the callback for the channel subscription.
-            
-            process.nextTick(function () {
-                check(messageWasReceived, "testSUBSCRIBEandPUBLISH b2");
-            });
         });
     });
 }
@@ -1507,107 +1497,119 @@ function testBRPOP() {
 }
 
 var allTestFunctions = [
-//    testAUTH,
-//    testBGSAVE,
-//    testBLPOP,
-//    testBRPOP,
-//    testDBSIZE,
-//    testDECR,
-//    testDECRBY,
-//    testDEL,
-//    testEXISTS,
-//    testEXPIRE,
-//    testFLUSHALL,
-//    testFLUSHDB,
-//    testGET,
-//    testGETSET,
-//    testHDEL, 
-//    testHEXISTS,
-//    testHGET,
-//    testHGETALL,
-//    testHINCRBY,
-//    testHKEYS,
-//    testHLEN,
-//    testHSET,
-//    testHVALS,
-//    testINCR,
-//    testINCRBY,
-//    testINFO,
-//    testKEYS,
-//    testLASTSAVE,
-//    testLINDEX,
-//    testLLEN,
-//    testLPOP,
-//    testLPUSH,
-//    testLRANGE,
-//    testLREM,
-//    testLSET,
-//    testLTRIM,
-//    testMGET,
-//    testMOVE,
-//    testMSET,
-//    testMSETNX,
-//    testParseBulkReply,
-//    testParseErrorReply,
-//    testParseInlineReply,
-//    testParseIntegerReply,
-//    testParseMultiBulkReply,
-//    testPSUBSCRIBE,
-//    testPUBLISH,
-//    testPUNSUBSCRIBE,
-//    testRANDOMKEY,
-//    testRENAME,
-//    testRENAMENX,
-//    testRPOP,
-//    testRPOPLPUSH,
-//    testRPUSH,
-//    testSADD,
-//    testSAVE,
-//    testSCARD,
-//    testSDIFF,
-//    testSDIFFSTORE,
-//    testSELECT,
-//    testSET,
-//    testSETANDGETMULTIBYTE,
-//    testSETNX,
-//    testSHUTDOWN,
-//    testSINTER,
-//    testSINTERSTORE,
-//    testSISMEMBER,
-//    testSMEMBERS,
-//    testSMOVE,
-//    testSORT,
-//    testSPOP,
-//    testSREM,
-//    testSUBSCRIBE,
-//    testSUNION,
-//    testSUNIONSTORE,
-//    testTTL,
-//    testTYPE,
-//    testUNSUBSCRIBE,
-//    testZADD,
-//    testZCARD,
-//    testZCOUNT,
-//    testZINCRBY,
-//    testZINTER,
-//    testZRANGE,
-//    testZRANGEBYSCORE,
-//    testZRANK,
-//    testZREM,
-//    testZREMRANGEBYRANK,
-//    testZREMRANGEBYSCORE,
-//    testZREVRANGE,
-//    testZREVRANK,
-//    testZSCORE,
-//    testZUNION,
-
-    testSUBSCRIBEandPUBLISH,
+    testAUTH,
+    testBGSAVE,
+    testBLPOP,
+    testBRPOP,
+    testDBSIZE,
+    testDECR,
+    testDECRBY,
+    testDEL,
+    testEXISTS,
+    testEXPIRE,
+    testFLUSHALL,
+    testFLUSHDB,
+    testGET,
+    testGETSET,
+    testHDEL, 
+    testHEXISTS,
+    testHGET,
+    testHGETALL,
+    testHINCRBY,
+    testHKEYS,
+    testHLEN,
+    testHSET,
+    testHVALS,
+    testINCR,
+    testINCRBY,
+    testINFO,
+    testKEYS,
+    testLASTSAVE,
+    testLINDEX,
+    testLLEN,
+    testLPOP,
+    testLPUSH,
+    testLRANGE,
+    testLREM,
+    testLSET,
+    testLTRIM,
+    testMGET,
+    testMOVE,
+    testMSET,
+    testMSETNX,
+    testParseBulkReply,
+    testParseErrorReply,
+    testParseInlineReply,
+    testParseIntegerReply,
+    testParseMultiBulkReply,
+    testPSUBSCRIBE,
+    testPUBLISH,
+    testPUNSUBSCRIBE,
+    testRANDOMKEY,
+    testRENAME,
+    testRENAMENX,
+    testRPOP,
+    testRPOPLPUSH,
+    testRPUSH,
+    testSADD,
+    testSAVE,
+    testSCARD,
+    testSDIFF,
+    testSDIFFSTORE,
+    testSELECT,
+    testSET,
+    testSETANDGETMULTIBYTE,
+    testSETNX,
+    testSHUTDOWN,
+    testSINTER,
+    testSINTERSTORE,
+    testSISMEMBER,
+    testSMEMBERS,
+    testSMOVE,
+    testSORT,
+    testSPOP,
+    testSREM,
+    testSUBSCRIBE,
+    testSUNION,
+    testSUNIONSTORE,
+    testTTL,
+    testTYPE,
+    testUNSUBSCRIBE,
+    testZADD,
+    testZCARD,
+    testZCOUNT,
+    testZINCRBY,
+    testZINTER,
+    testZRANGE,
+    testZRANGEBYSCORE,
+    testZRANK,
+    testZREM,
+    testZREMRANGEBYRANK,
+    testZREMRANGEBYSCORE,
+    testZREVRANGE,
+    testZREVRANK,
+    testZSCORE,
+    testZUNION,
 ];
 
 function checkIfDone() {
     if (client.callbacks.length == 0) {
-        sys.debug("all tests have passed.");
-        process.exit(0);
+        testSUBSCRIBEandPUBLISH();
+        
+        var checks = 0;
+        setInterval(function () {
+            if (messageWasReceived) {
+                sys.debug("");
+                sys.debug("################################################################"); 
+                sys.debug("All tests have completed successfully.");
+                sys.debug("################################################################"); 
+                sys.debug("");
+
+                process.exit(0);
+            } else {
+                assert.notEqual(++checks, 5, "testSUBSCRIBEandPUBLISH never received message");
+            } 
+        }, 100);
     } else {
         sys.debug(client.callbacks.length + " callbacks still pending...");
     }
