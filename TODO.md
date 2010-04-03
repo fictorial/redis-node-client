@@ -1,14 +1,23 @@
-# SOONISH
+## ASAP
 
-- are we binary safe for values given the XReply objects?
-    - or do we need to use binary buffers? or buffer slices?
-- Update to support Node.js HEAD now that showstopper bugs therein are squashed.
-- MULTI/EXEC/DISCARD support -- how should we handle errors? report replies? etc.
+- 'tcp' is now 'net'
 
-# MAYBE SOMEDAY
+- Use buffer objects instead of strings
+    - Use UTF8 slices where strings are needed
 
-- channel names not binary safe since they are stored in a JS object as key. Do we care?
+- Redo reply parser as a state machine parser
+    - Receive Buffer objects in 'data' events
+    - Check each byte of the buffer to set parser state
+
+- MULTI/EXEC/DISCARD
+
+---
+
+## Later 
+
 - Provide wrapper around pretty-raw sort method?
+
 - Consistent hashing ala redis-rb and txRedisAPI
+
 - JS object-redis mapper using just redis hashes 
     - note: no nested objects in redis' hashes (so no nested lists, sets, hashes)
