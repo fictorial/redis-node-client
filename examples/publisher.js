@@ -10,10 +10,12 @@ var client = redis.createClient();
 
 // Publish a message once a second to a random channel.
 
-setInterval(function () {
-    var channelName = "channel-" + Math.random().toString().substr(2);
-    var payload = "The time is " + (new Date());
-    client.publish(channelName, payload, function (err, reply) {
-        sys.puts("Published message to " + (reply === 0 ? "no one" : (reply + " subscriber(s).")));
-    });
-}, 1000); 
+client.stream.addListener("connect", function () {
+    setInterval(function () {
+        var channelName = "channel-" + Math.random().toString().substr(2);
+        var payload = "The time is " + (new Date());
+        client.publish(channelName, payload, function (err, reply) {
+            sys.puts("Published message to " + (reply === 0 ? "no one" : (reply + " subscriber(s).")));
+        });
+    }, 1000); 
+});

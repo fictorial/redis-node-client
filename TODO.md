@@ -2,7 +2,6 @@
 
 - Use Buffer.growBy in ReplyParser instead of maxReplySize
 - Use Buffer.copy in Client generated command send methods when arg is a Buffer to avoid slices
-- Fix publisher.js race condition; be more idiomatic
 - Add support for Kiwi package manager
 - Add support for NPM package manager
 
