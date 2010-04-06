@@ -10,7 +10,9 @@ command methods are generated.  Thus, please refer to the
 [specification](http://code.google.com/p/redis/wiki/CommandReference) as
 documentation.  
 
-Also refer to the tests in `test.js` for usage examples.
+Refer to the many tests in `test.js` for usage examples.
+
+Refer to the `examples` directory for a **PUBSUB** example (buzzword compliant!).
 
 All commands/requests use the Redis *multi-bulk request* format which 
 will be the only accepted request protocol come Redis 2.0.
