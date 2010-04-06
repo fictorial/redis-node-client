@@ -4,10 +4,12 @@
 
 - Talk to Redis from Node.js 
 - Fully asynchronous; your code is called back when an operation completes
-- Binary-safe; uses Node.js Buffer objects 
+- [Binary-safe](http://github.com/fictorial/redis-node-client/blob/master/test/test.js#L353-363); uses Node.js Buffer objects for request serialization and reply parsing
 - Client API directly follows Redis' [command specification](http://code.google.com/p/redis/wiki/CommandReference) 
 - *You have to understand how Redis works and the semantics of its command set to most effectively use this client*
 - Supports Redis' new exciting PUBSUB commands
+
+Recent changes completely break backwards compatibility.  Sorry, it was time.
 
 ## Synopsis
 
