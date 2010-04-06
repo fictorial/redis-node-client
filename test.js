@@ -47,11 +47,15 @@ var quiet   = process.argv.indexOf("-q") != -1;
 
 redisclient.debugMode = verbose && !quiet;
 
+function log(level, msg) {
+    var colorsForLevel = { info:37, warn:33, error:31 };
+    sys.error("\033[" + colorsForLevel[level || 'info'] + "m[" + 
+              level.toUpperCase() + "] " + msg + "\033[0m");
+}
+
 function showContext(context) {
-    sys.error("");
-    sys.error("########################################");
-    sys.error(context + " FAILED!");
-    sys.error("########################################");
+    sys.error("\n");
+    log('error', context + " FAILED!");
     sys.error("");
 }
 
@@ -364,8 +368,8 @@ function testINFO() {
         check(info.hasOwnProperty('redis_version'), "testINFO");
         check(info.hasOwnProperty('connected_clients'), "testINFO");
         check(info.hasOwnProperty('uptime_in_seconds'), "testINFO");
-        checkEqual(typeof(info.uptime_in_seconds), 'number', "testINFO");
-        checkEqual(typeof(info.connected_clients), 'number', "testINFO");
+        checkEqual(typeof(info.uptime_in_seconds), 'string', "testINFO");
+        checkEqual(typeof(info.connected_clients), 'string', "testINFO");
     });
 }
 
@@ -1694,7 +1698,8 @@ function checkIfDone() {
         var checks = 0;
         setInterval(function () {
             if (messageWasReceived) {
-                sys.error("\nAll tests have passed.");
+                sys.error("\n");
+                log("info", "All tests have passed.");
                 process.exit(0);
             } else {
                 assert.notEqual(++checks, 5, "testSUBSCRIBEandPUBLISH never received message");
@@ -1702,7 +1707,7 @@ function checkIfDone() {
         }, 100);
     } else {
         if (verbose)
-            sys.debug(client.callbacks.length + " callbacks still pending...");
+            log('info', client.callbacks.length + " callbacks still pending...");
         else if (!quiet)
             sys.print("+");
     }
@@ -1711,9 +1716,9 @@ function checkIfDone() {
 function runAllTests() {
     allTestFunctions.forEach(function (testFunction) {
         if (verbose) {
-            sys.debug("");
-            sys.debug("Testing " + testFunction.name.replace(/^test/, ''));
-            sys.debug("=========================================");
+            sys.error("");
+            log("info", "Testing " + testFunction.name.replace(/^test/, ''));
+            sys.error("=========================================");
         } else if (!quiet) {
             sys.print(".");
         }
