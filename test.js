@@ -48,11 +48,11 @@ var quiet   = process.argv.indexOf("-q") != -1;
 redisclient.debugMode = verbose && !quiet;
 
 function showContext(context) {
-    sys.debug("");
-    sys.debug("########################################");
-    sys.debug(context + " FAILED!");
-    sys.debug("########################################");
-    sys.debug("");
+    sys.error("");
+    sys.error("########################################");
+    sys.error(context + " FAILED!");
+    sys.error("########################################");
+    sys.error("");
 }
 
 // These wrappers around the assert module exist because we generate functions
@@ -359,7 +359,7 @@ function testSETANDGETMULTIBYTE() {
 }
 
 function testINFO() {
-    client.info( function (err, info) {
+    client.info(function (err, info) {
         check(info instanceof Object, "testINFO");
         check(info.hasOwnProperty('redis_version'), "testINFO");
         check(info.hasOwnProperty('connected_clients'), "testINFO");
@@ -375,13 +375,13 @@ function testINCR() {
 }
 
 function testINCRBY() {
-    client.incrby('counter', '2', expectNumber(2, "testINCRBY"))
-    client.incrby('counter', '-1', expectNumber(1, "testINCRBY"))
+    client.incrby('counter', 2, expectNumber(2, "testINCRBY"))
+    client.incrby('counter', -1, expectNumber(1, "testINCRBY"))
 }
 
 function testDECR() {
-    client.decr('counter', expectNumber(-1, "tetDECR"))
-    client.decr('counter', expectNumber(-2, "tetDECR"))
+    client.decr('counter', expectNumber(-1, "testDECR"))
+    client.decr('counter', expectNumber(-2, "testDECR"))
 }
 
 function testDECRBY() {
