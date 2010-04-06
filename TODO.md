@@ -1,16 +1,10 @@
-## ASAP
-
-- Use Buffer.growBy in ReplyParser instead of maxReplySize
-- Use Buffer.copy in Client generated command send methods when arg is a Buffer to avoid slices
-- Add support for Kiwi package manager
-- Add support for NPM package manager
-
-- MULTI/EXEC/DISCARD
+- Support MULTI/EXEC/DISCARD
+- Support for Kiwi package manager
+- Support for NPM package manager
 
 ---
 
-## Later 
-
+- Create a free list for request buffers instead of allocating one for each request?
 - Provide wrapper around pretty-raw sort method?
 - Consistent hashing ala redis-rb and txRedisAPI
 - JS object-redis mapper using just redis hashes 

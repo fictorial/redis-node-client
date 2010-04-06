@@ -39,15 +39,19 @@ var TEST_DB_NUMBER = 15,
 
 var sys = require("sys"),
     assert = require("assert"),
-    redisclient = require("./redisclient");
+    redisclient = require("./redisclient"),
+    Buffer = require("buffer").Buffer;
 
-redisclient.debugMode = true;
+var verbose = process.argv.indexOf("-v") != -1;
+var quiet   = process.argv.indexOf("-q") != -1;
+
+redisclient.debugMode = verbose && !quiet;
 
 function showContext(context) {
     sys.debug("");
-    sys.debug("VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
+    sys.debug("########################################");
     sys.debug(context + " FAILED!");
-    sys.debug("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
+    sys.debug("########################################");
     sys.debug("");
 }
 
@@ -121,121 +125,155 @@ function clearTestDatabasesBeforeEachTest() {
     client.flushdb(expectOK("flushdb"));
 }
 
+function bufferFromString(str, encoding) {
+    var enc = encoding || 'utf8';
+    var buf = new Buffer(str.length);
+    switch (enc) {
+        case 'utf8':   buf.utf8Write(str);   break;
+        case 'ascii':  buf.asciiWrite(str);  break;
+        case 'binary': buf.binaryWrite(str); break;
+        default: 
+            assert.fail("unknown encoding: " + encoding);
+    }
+    return buf;
+}
+
 function testParseBulkReply() {
-    var a = "$6\r\nFOOBAR\r\n";
-    client.readBuffer = a;
-    var reply = client.parseBulkReply();
-    checkEqual(reply.value, "FOOBAR", "testParseBulkReply");
+    var a = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.BULK, "testParseBulkReply a-0");
+        check(reply.value instanceof Buffer, "testParseBulkReply a-1");
+        checkEqual(reply.value.utf8Slice(0, reply.value.length), "FOOBAR", "testParseBulkReply a-2");
+    });
+    a.feed(bufferFromString("$6\r\nFOOBAR\r\n"));
 
-    var b = "$-1\r\n";
-    client.readBuffer = b;
-    reply = client.parseBulkReply();
-    checkDeepEqual(reply, redisclient.nullReply, "testParseBulkReply");
+    var b = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.BULK, "testParseBulkReply b-0");
+        checkEqual(reply.value, null, "testParseBulkReply b-1");
+    });
+    b.feed(bufferFromString("$-1\r\n"));
+}
 
-    var c = "$-1\r";     // NB: partial command, missing \n
-    client.readBuffer = c;
-    reply = client.parseBulkReply();
-    checkDeepEqual(reply, redisclient.partialReply, "testParseBulkReply");
+Buffer.prototype.toString=function() {
+    return this.utf8Slice(0,this.length);
 }
 
 function testParseMultiBulkReply() {
-    var a = "*4\r\n$3\r\nFOO\r\n$3\r\nBAR\r\n$5\r\nHELLO\r\n$5\r\nWORLD\r\n";
-    client.readBuffer = a;
-    var reply = client.parseMultiBulkReply();
-    check(reply instanceof redisclient.MultiBulkReply, "testParseMultiBulkReply 0");
-    checkEqual(reply.replies.length, 4, "testParseMultiBulkReply a-1");
-    check(reply.replies[0] instanceof redisclient.BulkReply, "testParseMultiBulkReply a-2");
-    check(reply.replies[1] instanceof redisclient.BulkReply, "testParseMultiBulkReply a-3");
-    check(reply.replies[2] instanceof redisclient.BulkReply, "testParseMultiBulkReply a-4");
-    check(reply.replies[3] instanceof redisclient.BulkReply, "testParseMultiBulkReply a-5");
-    checkEqual(reply.replies[0].value, 'FOO', "testParseMultiBulkReply a-6");
-    checkEqual(reply.replies[1].value, 'BAR', "testParseMultiBulkReply a-7");
-    checkEqual(reply.replies[2].value, 'HELLO', "testParseMultiBulkReply a-8");
-    checkEqual(reply.replies[3].value, 'WORLD', "testParseMultiBulkReply a-9");
+    var a = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.MULTIBULK, "testParseMultiBulkReply a-0");
+        check(reply.value instanceof Array, "testParseMultiBulkReply a-1");
+        checkEqual(reply.value.length, 4, "testParseMultiBulkReply a-2");
+        check(reply.value[0].type === redisclient.BULK, "testParseMultiBulkReply a-3");
+        check(reply.value[1].type === redisclient.BULK, "testParseMultiBulkReply a-4");
+        check(reply.value[2].type === redisclient.BULK, "testParseMultiBulkReply a-5");
+        check(reply.value[3].type === redisclient.BULK, "testParseMultiBulkReply a-6");
+        check(reply.value[0].value instanceof Buffer, "testParseMultiBulkReply a-7");
+        check(reply.value[1].value instanceof Buffer, "testParseMultiBulkReply a-8");
+        check(reply.value[2].value instanceof Buffer, "testParseMultiBulkReply a-9");
+        check(reply.value[3].value instanceof Buffer, "testParseMultiBulkReply a-10");
+        checkEqual(reply.value[0].value.length, 3, "testParseMultiBulkReply a-11");
+        checkEqual(reply.value[1].value.length, 3, "testParseMultiBulkReply a-12");
+        checkEqual(reply.value[2].value.length, 5, "testParseMultiBulkReply a-13");
+        checkEqual(reply.value[3].value.length, 6,  "testParseMultiBulkReply a-14");
+        checkEqual(reply.value[0].value.utf8Slice(0, reply.value[0].value.length), 'FOO',   "testParseMultiBulkReply a-15");
+        checkEqual(reply.value[1].value.utf8Slice(0, reply.value[1].value.length), 'BAR',   "testParseMultiBulkReply a-16");
+        checkEqual(reply.value[2].value.utf8Slice(0, reply.value[2].value.length), 'HELLO', "testParseMultiBulkReply a-17");
+        checkEqual(reply.value[3].value.utf8Slice(0, reply.value[3].value.length), 'WORLD!', "testParseMultiBulkReply a-18");
+    });
+    a.feed(bufferFromString("*4\r\n$3\r\nFOO\r\n$3\r\nBAR\r\n$5\r\nHELLO\r\n$6\r\nWORLD!\r\n"));
 
-    var b = "$-1\r\n";
-    client.readBuffer = b;
-    reply = client.parseMultiBulkReply();
-    checkDeepEqual(reply, redisclient.nullReply, "testParseMultiBulkReply b-1");
+    var b = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.MULTIBULK, "testParseMultiBulkReply b-0");
+        checkEqual(reply.value, null, "testParseMultiBulkReply b-1");
+    });
+    b.feed(bufferFromString("*-1\r\n"));
 
-    var c = "*3\r\n$3\r\nFOO\r\n$-1\r\n$4\r\nBARZ\r\n";
-    client.readBuffer = c;
-    reply = client.parseMultiBulkReply();
-    check(reply instanceof redisclient.MultiBulkReply, "testParseMultiBulkReply c-0");
-    checkEqual(reply.replies.length, 3, "testParseMultiBulkReply c-1");
-    check(reply.replies[0] instanceof redisclient.BulkReply, "testParseMultiBulkReply c-2");
-    checkEqual(reply.replies[1], redisclient.nullReply, "testParseMultiBulkReply c-3");
-    check(reply.replies[2] instanceof redisclient.BulkReply, "testParseMultiBulkReply c-4");
-    checkEqual(reply.replies[0].value, 'FOO', "testParseMultiBulkReply c-5");
-    checkEqual(reply.replies[2].value, 'BARZ', "testParseMultiBulkReply c-6");
+    var c = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.MULTIBULK, "testParseMultiBulkReply c-0");
+        check(reply.value instanceof Array, "testParseMultiBulkReply c-1");
+        checkEqual(reply.value.length, 3, "testParseMultiBulkReply c-2");
+        check(reply.value[0].type === redisclient.BULK, "testParseMultiBulkReply c-3");
+        check(reply.value[1].type === redisclient.BULK, "testParseMultiBulkReply c-4");
+        check(reply.value[2].type === redisclient.BULK, "testParseMultiBulkReply c-5");
+        checkEqual(reply.value[0].value.utf8Slice(0, reply.value[0].value.length), 'FOO', "testParseMultiBulkReply c-6");
+        checkEqual(reply.value[1].value, null, "testParseMultiBulkReply c-7");
+        checkEqual(reply.value[2].value.utf8Slice(0, reply.value[2].value.length), 'BARZ', "testParseMultiBulkReply c-8");
+    });
+    c.feed(bufferFromString("*3\r\n$3\r\nFOO\r\n$-1\r\n$4\r\nBARZ\r\n"));
 
     // Test with a multi-bulk reply containing a subreply that's non-bulk
     // but an inline/integer reply instead.
 
-    var d = "*3\r\n$9\r\nsubscribe\r\n$6\r\n#redis\r\n:1\r\n";
-    client.readBuffer = d;
-    reply = client.parseMultiBulkReply();
-    check(reply instanceof redisclient.MultiBulkReply);
-    checkEqual(reply.replies.length, 3, "testParseMultiBulkReply d-0");
-    check(reply.replies[0] instanceof redisclient.BulkReply, "testParseMultiBulkReply d-1");
-    check(reply.replies[1] instanceof redisclient.BulkReply, "testParseMultiBulkReply d-2");
-    check(reply.replies[2] instanceof redisclient.IntegerReply, "testParseMultiBulkReply d-3");
-    checkEqual(reply.replies[0].value, 'subscribe', "testParseMultiBulkReply d-4");
-    checkEqual(reply.replies[1].value, '#redis', "testParseMultiBulkReply d-5");
-    checkEqual(reply.replies[2].value, 1, "testParseMultiBulkReply d-6");
+    var d = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.MULTIBULK, "testParseMultiBulkReply d-0");
+        check(reply.value instanceof Array, "testParseMultiBulkReply d-1");
+        checkEqual(reply.value.length, 3, "testParseMultiBulkReply d-2");
+        check(reply.value[0].type === redisclient.BULK, "testParseMultiBulkReply d-3");
+        check(reply.value[1].type === redisclient.BULK, "testParseMultiBulkReply d-4");
+        check(reply.value[2].type === redisclient.INTEGER, "testParseMultiBulkReply d-5");
+        check(reply.value[0].value instanceof Buffer, "testParseMultiBulkReply d-6");
+        check(reply.value[1].value instanceof Buffer, "testParseMultiBulkReply d-7");
+        checkEqual(typeof(reply.value[2].value), "number", "testParseMultiBulkReply d-8");
+        checkEqual(reply.value[0].value.utf8Slice(0, reply.value[0].value.length), 'subscribe', "testParseMultiBulkReply d-9");
+        checkEqual(reply.value[1].value.utf8Slice(0, reply.value[1].value.length), '#redis', "testParseMultiBulkReply d-10");
+        checkEqual(reply.value[2].value, 1, "testParseMultiBulkReply d-11");
+    });
+    d.feed(bufferFromString("*3\r\n$9\r\nsubscribe\r\n$6\r\n#redis\r\n:1\r\n"));
 
-    var e = "*0\r\n";
-    client.readBuffer = e;
-    reply = client.parseMultiBulkReply();
-    check(reply instanceof redisclient.MultiBulkReply, "testParseMultiBulkReply e-0");
-    checkEqual(reply.replies.length, 0, "testParseMultiBulkReply e-1");
+    var e = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.MULTIBULK, "testParseMultiBulkReply e-0");
+        checkEqual(reply.value, null, "testParseMultiBulkReply e-1");
+    });
+    e.feed(bufferFromString("*0\r\n"));
 }
 
 function testParseInlineReply() {
-    var a = "+OK\r\n";
-    client.readBuffer = a;
-    var reply = client.parseInlineReply();
-    check(reply instanceof redisclient.InlineReply, "testParseInlineReply");
-    checkEqual(typeof(reply.value), 'string', "testParseInlineReply");
-    checkEqual(reply.value, "OK", "testParseInlineReply");
+    var a = new redisclient.ReplyParser(function (reply) {
+        // maybeConvertReplyValue is called by redisclient for non-test calls
+        reply.value = redisclient.maybeConvertReplyValue_('N/A', reply);  
+        checkEqual(reply.type, redisclient.INLINE, "testParseInlineReply a-0");
+        checkEqual(typeof(reply.value), 'boolean', "testParseInlineReply a-1");
+        checkEqual(reply.value, true, "testParseInlineReply a-2");
+    });
+    a.feed(bufferFromString("+OK\r\n"));
 
-    var b = "+WHATEVER\r\n";
-    client.readBuffer = b;
-    reply = client.parseInlineReply();
-    check(reply instanceof redisclient.InlineReply, "testParseInlineReply");
-    checkEqual(typeof(reply.value), 'string', "testParseInlineReply");
-    checkEqual(reply.value, 'WHATEVER', "testParseInlineReply");
+    var b = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.INLINE, "testParseInlineReply b-0");
+        check(reply.value instanceof Buffer, "testParseInlineReply b-1");
+        checkEqual(reply.value.utf8Slice(0, reply.value.length), 'WHATEVER', "testParseInlineReply b-2");
+    });
+    b.feed(bufferFromString("+WHATEVER\r\n"));
 }
 
 function testParseIntegerReply() {
-    var a = ":-1\r\n";
-    client.readBuffer = a;
-    var reply = client.parseIntegerReply();
-    check(reply instanceof redisclient.IntegerReply, "testParseIntegerReply");
-    checkEqual(typeof(reply.value), 'number', "testParseIntegerReply");
-    checkEqual(reply.value, -1, "testParseIntegerReply");
+    var a = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.INTEGER, "testParseIntegerReply a-0");
+        checkEqual(typeof(reply.value), 'number', "testParseIntegerReply a-1");
+        checkEqual(reply.value, -1, "testParseIntegerReply a-2");
+    });
+    a.feed(bufferFromString(":-1\r\n"));
 
-    var b = ":1000\r\n";
-    client.readBuffer = b;
-    reply = client.parseIntegerReply();
-    check(reply instanceof redisclient.IntegerReply, "testParseIntegerReply");
-    checkEqual(typeof(reply.value), 'number', "testParseIntegerReply");
-    checkEqual(reply.value, 1000, "testParseIntegerReply");
+    var b = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.INTEGER, "testParseIntegerReply b-0");
+        checkEqual(typeof(reply.value), 'number', "testParseIntegerReply b-1");
+        checkEqual(reply.value, 1000, "testParseIntegerReply b-2");
+    });
+    b.feed(bufferFromString(":1000\r\n"));
 }
 
 function testParseErrorReply() {
-    var a = "-ERR solar flare\r\n";
-    client.readBuffer = a;
-    var reply = client.parseErrorReply();
-    checkEqual(typeof(reply.value), 'string', "testParseErrorReply");
-    checkEqual(reply.value, "ERR solar flare", "testParseErrorReply");
+    var a = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.ERROR, "testParseErrorReply c-0");
+        check(reply.value instanceof Buffer, "testParseErrorReply c-1");
+        checkEqual(reply.value.utf8Slice(0, reply.value.length), "ERR solar flare", "testParseErrorReply c-2");
+    });
+    a.feed(bufferFromString("-ERR solar flare\r\n"));
 
-    var b = "-hiccup\r\n";
-    client.readBuffer = b;
-    reply = client.parseErrorReply();
-    check(reply instanceof redisclient.ErrorReply, "testParseErrorReply");
-    checkEqual(typeof(reply.value), 'string', "testParseErrorReply");
-    checkEqual(reply.value, "hiccup", "testParseErrorReply");
+    var b = new redisclient.ReplyParser(function (reply) {
+        checkEqual(reply.type, redisclient.ERROR, "testParseErrorReply b-0");
+        check(reply.value instanceof Buffer, "testParseErrorReply b-1");
+        checkEqual(reply.value.utf8Slice(0, reply.value.length), "hiccup", "testParseErrorReply b-2");
+    });
+    b.feed(bufferFromString("-hiccup\r\n"));
 }
 
 function testAUTH() {
@@ -243,17 +281,17 @@ function testAUTH() {
     // This unit test suite assumes the auth feature is off/disabled.
     // Auth *would be* the first command required after connecting.
 
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testSELECT() {
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testFLUSHDB() {
     // no-op; tested in testSelect
 
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testSET() {
@@ -310,12 +348,14 @@ function testGETSET() {
 }
 
 function testSETANDGETMULTIBYTE() {
-    var testValue = unescape('%F6');
-    client.set('unicode', testValue, expectOK("testSETANDGETMULTIBYTE"))
+    var testValue = '\u00F6\u65E5\u672C\u8A9E'; // ö日本語
+    var buffer = new Buffer(32);
+    var size = buffer.utf8Write(testValue,0);
+    client.set('testUtf8Key', buffer.slice(0,size), expectOK("testSETANDGETMULTIBYTE"))
 
-    client.get('unicode', function (err, value) {
+    client.get('testUtf8Key', function (err, value) {
         if (err) assert.fail(err, "testSETANDGETMULTIBYTE");
-        checkEqual(value, testValue, "testSETANDGETMULTIBYTE");
+        checkEqual(value.utf8Slice(0, value.length), testValue, "testSETANDGETMULTIBYTE");
     });
 }
 
@@ -371,6 +411,7 @@ function testKEYS() {
     client.keys('foo*', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
         checkEqual(keys.length, 2, "testKEYS");
+        convertMultiBulkBuffersToUTF8Strings(keys);
         checkDeepEqual(keys.sort(), ['foo1', 'foo2'], "testKEYS");
     });
 
@@ -382,12 +423,14 @@ function testKEYS() {
     client.keys('*', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
         checkEqual(keys.length, 4, "testKEYS");
+        convertMultiBulkBuffersToUTF8Strings(keys);
         checkDeepEqual(keys.sort(), ['baz', 'boo', 'foo1', 'foo2'], "testKEYS");
     });
 
     client.keys('?oo', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
         checkEqual(keys.length, 1, "testKEYS");
+        convertMultiBulkBuffersToUTF8Strings(keys);
         checkDeepEqual(keys.sort(), ['boo'], "testKEYS");
     });
 }
@@ -633,11 +676,13 @@ function testRPOPLPUSH() {
 
     client.lrange('src', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testRPOPLPUSH");
+        convertMultiBulkBuffersToUTF8Strings(values);
         checkDeepEqual(values, [ 'ABC' ], "testRPOPLPUSH");
     });
 
     client.lrange('dst', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testRPOPLPUSH");
+        convertMultiBulkBuffersToUTF8Strings(values);
         checkDeepEqual(values, [ 'DEF' ], "testRPOPLPUSH");
     });
 }
@@ -718,6 +763,7 @@ function testSDIFFSTORE() {
     client.smembers('quux', function (err, members) {
         if (err) assert.fail(err, "testSDIFFSTORE");
         members.sort();
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'b', 'x' ], "testSDIFFSTORE");
     });
 }
@@ -727,6 +773,7 @@ function testSMEMBERS() {
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSMEMBERS");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'x' ], "testSMEMBERS");
     });
 
@@ -735,6 +782,7 @@ function testSMEMBERS() {
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSMEMBERS");
         checkEqual(members.length, 2, "testSMEMBERS");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members.sort(), [ 'x', 'y' ], "testSMEMBERS");
     });
 }
@@ -763,12 +811,14 @@ function testSINTER() {
     client.sinter('sa', 'sb', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
         checkEqual(intersection.length, 2, "testSINTER");
+        convertMultiBulkBuffersToUTF8Strings(intersection);
         checkDeepEqual(intersection.sort(), [ 'b', 'c' ], "testSINTER");
     });
 
     client.sinter('sb', 'sc', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
         checkEqual(intersection.length, 2, "testSINTER");
+        convertMultiBulkBuffersToUTF8Strings(intersection);
         checkDeepEqual(intersection.sort(), [ 'c', 'd' ], "testSINTER");
     });
 
@@ -804,6 +854,7 @@ function testSINTERSTORE() {
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSINTERSTORE");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'c' ], "testSINTERSTORE");
     });
 }
@@ -823,6 +874,7 @@ function testSUNION() {
 
     client.sunion('sa', 'sb', 'sc', function (err, union) {
         if (err) assert.fail(err, "testUNION");
+        convertMultiBulkBuffersToUTF8Strings(union);
         checkDeepEqual(union.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNION");
     });
 }
@@ -848,6 +900,7 @@ function testSUNIONSTORE() {
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testUNIONSTORE");
         checkEqual(members.length, 5, "testUNIONSTORE");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNIONSTORE");
     });
 }
@@ -991,11 +1044,13 @@ function testSORT() {
 
     client.sort('y', 'asc', 'alpha', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['a', 'b', 'c', 'd'], "testSORT");
     });
 
     client.sort('y', 'desc', 'alpha', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['d', 'c', 'b', 'a'], "testSORT");
     });
 
@@ -1004,11 +1059,13 @@ function testSORT() {
 
     client.sort('x', 'asc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, [2, 3, 4, 9], "testSORT");
     });
 
     client.sort('x', 'desc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, [9, 4, 3, 2], "testSORT");
     });
 
@@ -1016,6 +1073,7 @@ function testSORT() {
 
     client.sort('x', 'by', 'w*', 'asc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, [3, 9, 4, 2], "testSORT");
     });
 
@@ -1023,6 +1081,7 @@ function testSORT() {
 
     client.sort('x', 'by', 'w*', 'asc', 'get', 'o*', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['foo', 'bar', 'baz', 'buz'], "testSORT");
     });
 
@@ -1030,6 +1089,7 @@ function testSORT() {
 
     client.sort('x', 'by', 'w*', 'asc', 'get', 'o*', 'get', 'p*', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
     });
 
@@ -1043,6 +1103,7 @@ function testSORT() {
 
     client.lrange('bacon', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testSORT");
+        convertMultiBulkBuffersToUTF8Strings(values);
         checkDeepEqual(values, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
     });
 }
@@ -1052,7 +1113,7 @@ function testSAVE() {
 }
 
 function testBGSAVE() {
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testLASTSAVE() {
@@ -1064,11 +1125,11 @@ function testLASTSAVE() {
 }
 
 function testFLUSHALL() {
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testSHUTDOWN() {
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testMSET() {
@@ -1134,16 +1195,19 @@ function testZRANGE() {
 
     client.zrange('z0', 0, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGE");
     });
 
     client.zrange('z0', -1, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm2' ], "testZRANGE");
     });
 
     client.zrange('z0', -2, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm1', 'm2' ], "testZRANGE");
     });
 }
@@ -1155,6 +1219,7 @@ function testZREVRANGE() {
 
     client.zrevrange('z0', 0, 1000, function (err, members) {
         if (err) assert.fail(err, "testZREVRANGE");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm2', 'm1', 'm0' ], "testZREVRANGE");
     });
 }
@@ -1166,18 +1231,19 @@ function testZRANGEBYSCORE() {
 
     client.zrangebyscore('z0', 200, 300, function (err, members) {
         if (err) assert.fail(err, "testZRANGEBYSCORE 4");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm1', 'm2' ], "testZRANGEBYSCORE 5");
     });
 
     client.zrangebyscore('z0', 100, 1000, function (err, members) {
         if (err) assert.fail(err, "testZRANGEBYSCORE 6");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGEBYSCORE 7");
     });
 
     client.zrangebyscore('z0', 10000, 100000, function (err, members) {
-        sys.debug("************"+JSON.stringify(members));
         if (err) assert.fail(err, "testZRANGEBYSCORE 8");
-        checkEqual(members.length, 0, "testZRANGEBYSCORE 9");
+        checkEqual(members, null, "testZRANGEBYSCORE 9");
     });
 }
 
@@ -1208,6 +1274,7 @@ function testZINTER() {
     client.zinter('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(1, "testZINTER"));
     client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZINTER");
+        convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'a', 4 ], "testZINTER");    // score=1+3
     });
 }
@@ -1219,6 +1286,7 @@ function testZUNION() {
     client.zunion('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(2, "testZUNION"));
     client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZUNION");
+        convertMultiBulkBuffersToUTF8Strings(members);
         check(members.length % 2 == 0, "testZUNION");
         var set = {};
         for (var i=0; i<members.length; i += 2)
@@ -1256,6 +1324,7 @@ function testZREMRANGEBYRANK() {
 
     client.zrange('z0', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZREMRANGEBYRANK");
+        convertMultiBulkBuffersToUTF8Strings(members);
         check(members.length % 2 == 0, "testZREMRANGEBYRANK");
         var set = {};
         for (var i=0; i<members.length; i += 2)
@@ -1274,6 +1343,7 @@ function testZREMRANGEBYSCORE() {
 
     client.zrange('z0', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZREMRANGEBYSCORE");
+        convertMultiBulkBuffersToUTF8Strings(members);
         check(members.length % 2 == 0, "testZREMRANGEBYSCORE");
         var set = {};
         for (var i=0; i<members.length; i += 2)
@@ -1307,6 +1377,7 @@ function testHGETALL() {
     client.hset("foo", "quux", "doo", expectNumber(1, "testHGETALL"));
     client.hgetall("foo", function (err, all) {
         if (err) assert.fail(err, "testHGETALL");
+        convertMultiBulkBuffersToUTF8Strings(all);
         checkDeepEqual(all, { bar:"baz", quux:"doo" }, "testHGETALL");
     });
 }
@@ -1324,6 +1395,7 @@ function testHKEYS() {
     client.hset("foo", "quux", "doo", expectNumber(1, "testHKEYS"));
     client.hkeys("foo", function (err, reply) {
         if (err) assert.fail(err, "testHKEYS");
+        convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply.sort(), [ "bar", "quux" ], "testHKEYS");
     });
 }
@@ -1333,6 +1405,7 @@ function testHVALS() {
     client.hset("foo", "quux", "doo", expectNumber(1, "testHVALS"));
     client.hvals("foo", function (err, reply) {
         if (err) assert.fail(err, "testHVALS");
+        convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply.sort(), [ "baz", "doo" ], "testHVALS");
     });
 }
@@ -1365,43 +1438,49 @@ function testHSET() {
 function testSUBSCRIBE() {
     client.subscribe("#redis", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        checkDeepEqual(reply, [ "subscribe", "#redis", 1 ], "testSUBSCRIBE");
+        convertMultiBulkBuffersToUTF8Strings(reply);
+        checkDeepEqual(reply, [ "subscribe", "#redis", "1" ], "testSUBSCRIBE");
     });
 
     client.subscribe("#Node.js", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        checkDeepEqual(reply, [ "subscribe", "#Node.js", 2 ], "testSUBSCRIBE");
+        convertMultiBulkBuffersToUTF8Strings(reply);
+        checkDeepEqual(reply, [ "subscribe", "#Node.js", "2" ], "testSUBSCRIBE");
     });
 
     client.unsubscribe("#redis", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        checkDeepEqual(reply, [ "unsubscribe", "#redis", 1 ], "testSUBSCRIBE");
+        convertMultiBulkBuffersToUTF8Strings(reply);
+        checkDeepEqual(reply, [ "unsubscribe", "#redis", "1" ], "testSUBSCRIBE");
     });
 
     client.unsubscribe("#Node.js", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        checkDeepEqual(reply, [ "unsubscribe", "#Node.js", 0 ], "testSUBSCRIBE");
+        convertMultiBulkBuffersToUTF8Strings(reply);
+        checkDeepEqual(reply, [ "unsubscribe", "#Node.js", "0" ], "testSUBSCRIBE");
     });
 }
 
 function testUNSUBSCRIBE() {
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testPSUBSCRIBE() {
     client.psubscribe("cooking.*", function (err, reply) {
         if (err) assert.fail(err, "testPSUBSCRIBE");
-        checkDeepEqual(reply, [ "psubscribe", "cooking.*", 1 ], "testPSUBSCRIBE");
+        convertMultiBulkBuffersToUTF8Strings(reply);
+        checkDeepEqual(reply, [ "psubscribe", "cooking.*", "1" ], "testPSUBSCRIBE");
     });
 
     client.punsubscribe("cooking.*", function (err, reply) {
         if (err) assert.fail(err, "testPSUBSCRIBE");
-        checkDeepEqual(reply, [ "punsubscribe", "cooking.*", 0 ], "testPSUBSCRIBE");
+        convertMultiBulkBuffersToUTF8Strings(reply);
+        checkDeepEqual(reply, [ "punsubscribe", "cooking.*", "0" ], "testPSUBSCRIBE");
     });
 }
 
 function testPUNSUBSCRIBE() {
-    sys.debug("This test does not do anything.");
+    printDisclaimer();
 }
 
 function testPUBLISH() {
@@ -1437,6 +1516,19 @@ function testSUBSCRIBEandPUBLISH() {
 // without using a timeout.  That being said, we can test the non-blocking
 // behavior by ensuring there's an element in a list that we try to pop from.
 
+function convertMultiBulkBuffersToUTF8Strings(o) {
+    if (o instanceof Array) {
+        for (var i=0; i<o.length; ++i) 
+            if (o[i] instanceof Buffer) 
+                o[i] = o[i].utf8Slice(0, o[i].length);
+    } else if (o instanceof Object) {
+        var props = Object.getOwnPropertyNames(o);
+        for (var i=0; i<props.length; ++i) 
+            if (o[props[i]] instanceof Buffer) 
+                o[props[i]] = o[props[i]].utf8Slice(0, o[props[i]].length);
+    }
+}
+
 function testBLPOP() {
     var timeout = 1;
 
@@ -1445,6 +1537,7 @@ function testBLPOP() {
     client.lpush('list0', 'ABC', expectNumber(1, "testBLPOP 1"));
     client.blpop('list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBLPOP 2");
+        convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "list0", "ABC" ], "testBLPOP 3");
     });
 
@@ -1454,6 +1547,7 @@ function testBLPOP() {
     client.lpush('list0', 'ABC', expectNumber(1, "testBLPOP 4"));
     client.blpop('list1', 'list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBLPOP 5");
+        convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "list0", "ABC" ], "testBLPOP 6");
     });
 
@@ -1475,7 +1569,8 @@ function testBRPOP() {
     client.lpush('list0', 'DEF', expectNumber(2, "testBRPOP"));
     client.brpop('list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBRPOP");
-        checkDeepEqual([ "list0", "ABC" ], reply, "testBRPOP");
+        convertMultiBulkBuffersToUTF8Strings(reply);
+        checkDeepEqual(reply, [ "list0", "ABC" ], "testBRPOP");
     });
 
     // Non-blocking against multiple keys.
@@ -1484,6 +1579,7 @@ function testBRPOP() {
     client.lpush('list0', 'ABC', expectNumber(2, "testBRPOP"));
     client.brpop('list1', 'list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBRPOP");
+        convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "list0", "DEF" ], "testBRPOP");
     });
 
@@ -1599,33 +1695,35 @@ function checkIfDone() {
         var checks = 0;
         setInterval(function () {
             if (messageWasReceived) {
-                sys.debug("");
-                sys.debug("################################################################"); 
-                sys.debug("All tests have completed successfully.");
-                sys.debug("################################################################"); 
-                sys.debug("");
-
+                sys.error("\nAll tests have passed.");
                 process.exit(0);
             } else {
                 assert.notEqual(++checks, 5, "testSUBSCRIBEandPUBLISH never received message");
             } 
         }, 100);
     } else {
-        sys.debug(client.callbacks.length + " callbacks still pending...");
+        if (verbose)
+            sys.debug(client.callbacks.length + " callbacks still pending...");
+        else if (!quiet)
+            sys.print("+");
     }
 }
 
 function runAllTests() {
     allTestFunctions.forEach(function (testFunction) {
-        sys.debug("");
-        sys.debug("Testing " + testFunction.name.replace(/^test/, ''));
-        sys.debug("=========================================");
+        if (verbose) {
+            sys.debug("");
+            sys.debug("Testing " + testFunction.name.replace(/^test/, ''));
+            sys.debug("=========================================");
+        } else if (!quiet) {
+            sys.print(".");
+        }
 
         clearTestDatabasesBeforeEachTest();
         testFunction();
     });
 
-    setInterval(checkIfDone, 3000);
+    setInterval(checkIfDone, 100);
 }
 
 var connectionFailed = false;
@@ -1645,5 +1743,10 @@ function debugFilter(what) {
     filtered = filtered.replace(/\n/g, '<LF>');
 
     return filtered;
+}
+
+function printDisclaimer() {
+    if (redisclient.debugMode) 
+        sys.debug("This test does not do anything");
 }
 
