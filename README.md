@@ -13,8 +13,26 @@ Recent changes completely break backwards compatibility.  Sorry, it was time.
 
 ## Synopsis
 
+When working from a git clone:
+
+    var client = require("./lib/redis-client").createClient(); 
     var sys = require("sys");
-    var client = require("redisclient").createClient();
+    client.stream.addListener("connect", function () {
+        client.info(function (err, info) {
+            if (err) throw new Error(err);
+            sys.puts("Redis Version is: " + info.redis_version);
+            client.close();
+        });
+    });
+
+When working with a Kiwi-based installation:
+
+    // $ kiwi install redis-client
+
+    var sys = require("sys"), 
+        kiwi = require("kiwi"),
+        client = kiwi.require("redis-client").createClient();
+
     client.stream.addListener("connect", function () {
         client.info(function (err, info) {
             if (err) throw new Error(err);
