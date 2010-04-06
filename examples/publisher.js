@@ -3,7 +3,7 @@
 // This script plays the role of publisher.
 
 var sys = require("sys");
-var redis = require("../redisclient");
+var redis = require("../lib/redis-client");
 
 //redis.debugMode = true;
 var client = redis.createClient();

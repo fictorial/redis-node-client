@@ -39,7 +39,7 @@ var TEST_DB_NUMBER = 15,
 
 var sys = require("sys"),
     assert = require("assert"),
-    redisclient = require("./redisclient"),
+    redisclient = require("../lib/redis-client"),
     Buffer = require("buffer").Buffer;
 
 var verbose = process.argv.indexOf("-v") != -1;
