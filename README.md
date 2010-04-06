@@ -39,6 +39,10 @@ You have a number of choices:
 - use the [Kiwi](http://github.com/visionmedia/kiwi) package manager for Node.js
 - use the [NPM](http://github.com/isaacs/npm) package manager for Node.js
 
+Please let me know if the package manager "seeds" and/or metadata have issues.
+Installation via Kiwi or NPM at this point isn't really possible since this repo
+is depending on a unreleased version of Node.js.
+
 ## Running the tests
 
 A good way to learn about this client is to read the test code.
