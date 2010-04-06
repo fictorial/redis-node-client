@@ -31,6 +31,15 @@ A good way to learn about this client is to read the test code.
 To run the tests, install and run redis on the localhost on port 6379 (defaults).
 Then run `node test.js [-v|-q]` where `-v` is for "verbose" and `-q` is for "quiet".
 
+    $ node test.js
+    ..................................................................
+    ...........................++++++++++++++++++++++++++++++++++++
+
+    [INFO] All tests have passed.
+
+If you see something like "PSUBSCRIBE: unknown command" then it is time to upgrade
+your Redis installation.
+
 ## Documentation
 
 There is a method per Redis command.  E.g. `SETNX` becomes `client.setnx`.
