@@ -24,6 +24,13 @@
 - Refer to the many tests in `test.js` for many usage examples.
 - Refer to the `examples` directory for focused examples.
 
+## Running the tests
+
+A good way to learn about this client is to read the test code.
+
+To run the tests, install and run redis on the localhost on port 6379 (defaults).
+Then run `node test.js [-v|-q]` where `-v` is for "verbose" and `-q` is for "quiet".
+
 ## Documentation
 
 There is a method per Redis command.  E.g. `SETNX` becomes `client.setnx`.
