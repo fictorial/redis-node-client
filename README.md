@@ -75,6 +75,9 @@ the callback function is called.
         // ...
     });
 
+This can get [a little wacky](http://github.com/fictorial/redis-node-client/blob/master/test/test.js#L1093-1097). 
+I'm open to suggestions for improvement here.
+
 ## Notes
 
 All commands/requests use the Redis *multi-bulk request* format which will be
