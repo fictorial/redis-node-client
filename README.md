@@ -41,7 +41,7 @@ You have a number of choices:
 
 Please let me know if the package manager "seeds" and/or metadata have issues.
 Installation via Kiwi or NPM at this point isn't really possible since this repo
-is depending on a unreleased version of Node.js.
+depends on a unreleased version of Node.js.
 
 ## Running the tests
 
