@@ -298,7 +298,6 @@ function testSET() {
     client.set('foo', 'bar', expectOK("testSET"));
     client.set('baz', 'buz', expectOK("testSET"));
     client.set('ggg', '123', expectOK("testSET"));
-    client.set('ggg', 123, expectOK("testSET"));    // number
 }
 
 function testSETNX() {
