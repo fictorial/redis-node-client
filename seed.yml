@@ -1,0 +1,6 @@
+---
+  name: redis-node-client
+  description: A Redis client
+  tags: redis
+  version: 0.1.0
+

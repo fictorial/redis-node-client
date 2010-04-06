@@ -21,17 +21,26 @@
         });
     });
 
-- Refer to the many tests in `test.js` for many usage examples.
-- Refer to the `examples` directory for focused examples.
+- Refer to the many tests in `test/test.js` for many usage examples.
+- Refer to the `examples/` directory for focused examples.
+
+## Installation
+
+You have a number of choices:
+
+- git clone this repo or download a tarball and simply copy `lib/redis-client.js` into your project
+- use git submodule
+- use the [Kiwi](http://github.com/visionmedia/kiwi) package manager for Node.js
+- use the [NPM](http://github.com/isaacs/npm) package manager for Node.js (not yet)
 
 ## Running the tests
 
 A good way to learn about this client is to read the test code.
 
 To run the tests, install and run redis on the localhost on port 6379 (defaults).
-Then run `node test.js [-v|-q]` where `-v` is for "verbose" and `-q` is for "quiet".
+Then run `node test/test.js [-v|-q]` where `-v` is for "verbose" and `-q` is for "quiet".
 
-    $ node test.js
+    $ node test/test.js
     ..................................................................
     ...........................++++++++++++++++++++++++++++++++++++
 
@@ -64,7 +73,6 @@ the only accepted request protocol come Redis 2.0.
 ## Compatibility
 
 Tested with `Node.js v0.1.33-184-g53dd9fe` and Redis `1.3.8`.
-
 A git tag exists for Node `v0.1.33`.
 
 ## Metadata
