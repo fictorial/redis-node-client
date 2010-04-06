@@ -1,6 +1,6 @@
 ## Some examples.
 
-Note: a large number of usage examples can be found in `../test.js`.
+Note: a large number of usage examples can be found in `../test/test.js`.
 
 ## Publisher-Subscriber (PUBSUB)
 
