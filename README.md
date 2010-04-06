@@ -1,4 +1,4 @@
-# Redis client for Node.js
+# A binary-safe Redis client for Node.js
 
 The client supports *pipelining* by default.  That is, every command is
 submitted to Redis asynchronously.  The client does not block waiting for a
