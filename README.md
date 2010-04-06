@@ -1,24 +1,60 @@
-# A binary-safe Redis client for Node.js
+# Redis client for Node.js
 
-The client supports *pipelining* by default.  That is, every command is
-submitted to Redis asynchronously.  The client does not block waiting for a
-response from Redis.  Your code can be called back when the response is
-received from Redis.
+## In a nutshell
 
-Each command is directly based on the Redis command specification but the
-command methods are generated.  Thus, please refer to the
-[specification](http://code.google.com/p/redis/wiki/CommandReference) as
-documentation.  
+- Talk to Redis from Node.js 
+- Fully asynchronous; your code is called back when an operation completes
+- Binary-safe; uses Node.js Buffer objects 
+- Client API directly follows Redis' [command specification](http://code.google.com/p/redis/wiki/CommandReference) 
+- *You have to understand how Redis works and the semantics of its command set to most effectively use this client*
+- Supports Redis' new exciting PUBSUB commands
 
-Refer to the many tests in `test.js` for usage examples.
+## Synopsis
 
-Refer to the `examples` directory for a **PUBSUB** example (buzzword compliant!).
+    var sys = require("sys");
+    var client = require("redisclient").createClient();
+    client.stream.addListener("connect", function () {
+        client.info(function (err, info) {
+            if (err) throw new Error(err);
+            sys.puts("Redis Version is: " + info.redis_version);
+            client.close();
+        });
+    });
 
-All commands/requests use the Redis *multi-bulk request* format which 
-will be the only accepted request protocol come Redis 2.0.
+- Refer to the many tests in `test.js` for many usage examples.
+- Refer to the `examples` directory for focused examples.
 
-Tested with `Node.js v0.1.33-184-g53dd9fe` (past most recent stable) and Redis
-`1.3.8`.
+## Documentation
 
-I'll package this for NPM and Kiwi soon.
+There is a method per Redis command.  E.g. `SETNX` becomes `client.setnx`.
+
+For example, the Redis command [INCRBY](http://code.google.com/p/redis/wiki/IncrCommand)
+is specified as `INCRBY key integer`.  Also, the INCRBY spec says that the reply will
+be "... the new value of key after the increment or decrement."
+
+This translates to the following client code which increments key 'foo' by 42.  If
+the value at key 'foo' was 0 or non-existent, 'newValue' will take value 42 when
+the callback function is called.
+
+    client.incrby('foo', 42, function (err, newValue) {
+        // ...
+    });
+
+## Notes
+
+All commands/requests use the Redis *multi-bulk request* format which will be
+the only accepted request protocol come Redis 2.0.
+
+## Compatibility
+
+Tested with `Node.js v0.1.33-184-g53dd9fe` and Redis `1.3.8`.
+
+A git tag exists for Node `v0.1.33`.
+
+## Metadata
+
+- *Author*: Brian Hammond (brian at fictorial dot com) with various patches 
+  from nice people everywhere.
+- *Copyright*: Copyright (C) 2010 Fictorial LLC.
+- *License*: MIT
 

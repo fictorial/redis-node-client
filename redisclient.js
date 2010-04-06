@@ -289,10 +289,10 @@ function Client(stream) {
         if (exports.debugMode)
             sys.debug("[DISCONNECTED]");
 
-        if (client.noReconnect &&
+        if (!client.noReconnect &&
             client.reconnectionAttempts++ < MAX_RECONNECTION_ATTEMPTS) {
             this.setTimeout(30);
-            this.connect(port, host);
+            this.connect(this.port, this.host);
         }
     });
 }
@@ -300,7 +300,15 @@ function Client(stream) {
 exports.Client = Client;
 
 exports.createClient = function (port, host) {
-    return new Client(new net.createConnection(port || 6379, host || '127.0.0.1'));
+    var port = port || 6379;
+    var host = host || '127.0.0.1';
+
+    var client = new Client(new net.createConnection(port, host));
+
+    client.port = port;
+    client.host = host;
+
+    return client;
 };
 
 Client.prototype.close = function () {
@@ -413,7 +421,7 @@ function maybeConvertReplyValue(commandName, reply) {
             .forEach(function (line) {
                 var parts = line.split(':');
                 if (parts.length === 2)
-                    info[parts[0]] = maybeAsNumber(parts[1]);
+                    info[parts[0]] = parts[1];
             });
         return info;
     }
