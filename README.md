@@ -26,12 +26,18 @@
 
 ## Installation
 
+This version requires at least `Node.js v0.1.33-184-g53dd9fe` and Redis `1.3.8`.
+In short, I'm trying to keep up with Node and Redis HEAD.
+
+A [git tag](http://github.com/fictorial/redis-node-client/tree/node_0.1.33__redis_1.3.8) 
+exists for Node `v0.1.33` as well.
+
 You have a number of choices:
 
 - git clone this repo or download a tarball and simply copy `lib/redis-client.js` into your project
 - use git submodule
 - use the [Kiwi](http://github.com/visionmedia/kiwi) package manager for Node.js
-- use the [NPM](http://github.com/isaacs/npm) package manager for Node.js (not yet)
+- use the [NPM](http://github.com/isaacs/npm) package manager for Node.js
 
 ## Running the tests
 
@@ -69,11 +75,6 @@ the callback function is called.
 
 All commands/requests use the Redis *multi-bulk request* format which will be
 the only accepted request protocol come Redis 2.0.
-
-## Compatibility
-
-Tested with `Node.js v0.1.33-184-g53dd9fe` and Redis `1.3.8`.
-A git tag exists for Node `v0.1.33`.
 
 ## Metadata
 
