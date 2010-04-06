@@ -81,7 +81,8 @@ This can get [a little wacky](http://github.com/fictorial/redis-node-client/blob
 I'm open to suggestions for improvement here.
 
 Note: for PUBSUB, you should use `subscribeTo` and `unsubscribeFrom` instead of the generated
-methods for Redis' `SUBSCRIBE` and `UNSUBSCRIBE` commands.  See [this](http://github.com/fictorial/redis-node-client/blob/master/lib/redis-client.js#L682-694).
+methods for Redis' `SUBSCRIBE` and `UNSUBSCRIBE` commands.  See [this](http://github.com/fictorial/redis-node-client/blob/master/lib/redis-client.js#L682-694)
+and [this](http://github.com/fictorial/redis-node-client/blob/master/examples/subscriber.js#L14).
 
 ## Notes
 
