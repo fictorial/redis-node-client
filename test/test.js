@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /*
     Redis client for Node.js -- tests
 
