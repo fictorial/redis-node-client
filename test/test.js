@@ -416,7 +416,7 @@ function testKEYS() {
     client.keys('foo*', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
         checkEqual(keys.length, 2, "testKEYS");
-        convertMultiBulkBuffersToUTF8Strings(keys);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(keys);
         checkDeepEqual(keys.sort(), ['foo1', 'foo2'], "testKEYS");
     });
 
@@ -428,14 +428,14 @@ function testKEYS() {
     client.keys('*', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
         checkEqual(keys.length, 4, "testKEYS");
-        convertMultiBulkBuffersToUTF8Strings(keys);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(keys);
         checkDeepEqual(keys.sort(), ['baz', 'boo', 'foo1', 'foo2'], "testKEYS");
     });
 
     client.keys('?oo', function (err, keys) {
         if (err) assert.fail(err, "testKEYS");
         checkEqual(keys.length, 1, "testKEYS");
-        convertMultiBulkBuffersToUTF8Strings(keys);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(keys);
         checkDeepEqual(keys.sort(), ['boo'], "testKEYS");
     });
 }
@@ -681,13 +681,13 @@ function testRPOPLPUSH() {
 
     client.lrange('src', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testRPOPLPUSH");
-        convertMultiBulkBuffersToUTF8Strings(values);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(values);
         checkDeepEqual(values, [ 'ABC' ], "testRPOPLPUSH");
     });
 
     client.lrange('dst', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testRPOPLPUSH");
-        convertMultiBulkBuffersToUTF8Strings(values);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(values);
         checkDeepEqual(values, [ 'DEF' ], "testRPOPLPUSH");
     });
 }
@@ -768,7 +768,7 @@ function testSDIFFSTORE() {
     client.smembers('quux', function (err, members) {
         if (err) assert.fail(err, "testSDIFFSTORE");
         members.sort();
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'b', 'x' ], "testSDIFFSTORE");
     });
 }
@@ -778,7 +778,7 @@ function testSMEMBERS() {
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSMEMBERS");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'x' ], "testSMEMBERS");
     });
 
@@ -787,7 +787,7 @@ function testSMEMBERS() {
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSMEMBERS");
         checkEqual(members.length, 2, "testSMEMBERS");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members.sort(), [ 'x', 'y' ], "testSMEMBERS");
     });
 }
@@ -816,14 +816,14 @@ function testSINTER() {
     client.sinter('sa', 'sb', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
         checkEqual(intersection.length, 2, "testSINTER");
-        convertMultiBulkBuffersToUTF8Strings(intersection);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(intersection);
         checkDeepEqual(intersection.sort(), [ 'b', 'c' ], "testSINTER");
     });
 
     client.sinter('sb', 'sc', function (err, intersection) {
         if (err) assert.fail(err, "testSINTER");
         checkEqual(intersection.length, 2, "testSINTER");
-        convertMultiBulkBuffersToUTF8Strings(intersection);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(intersection);
         checkDeepEqual(intersection.sort(), [ 'c', 'd' ], "testSINTER");
     });
 
@@ -859,7 +859,7 @@ function testSINTERSTORE() {
 
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testSINTERSTORE");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'c' ], "testSINTERSTORE");
     });
 }
@@ -879,7 +879,7 @@ function testSUNION() {
 
     client.sunion('sa', 'sb', 'sc', function (err, union) {
         if (err) assert.fail(err, "testUNION");
-        convertMultiBulkBuffersToUTF8Strings(union);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(union);
         checkDeepEqual(union.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNION");
     });
 }
@@ -905,7 +905,7 @@ function testSUNIONSTORE() {
     client.smembers('foo', function (err, members) {
         if (err) assert.fail(err, "testUNIONSTORE");
         checkEqual(members.length, 5, "testUNIONSTORE");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members.sort(), ['a', 'b', 'c', 'd', 'e'], "testUNIONSTORE");
     });
 }
@@ -1049,13 +1049,13 @@ function testSORT() {
 
     client.sort('y', 'asc', 'alpha', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(sorted);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['a', 'b', 'c', 'd'], "testSORT");
     });
 
     client.sort('y', 'desc', 'alpha', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(sorted);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['d', 'c', 'b', 'a'], "testSORT");
     });
 
@@ -1064,13 +1064,13 @@ function testSORT() {
 
     client.sort('x', 'asc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(sorted);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, [2, 3, 4, 9], "testSORT");
     });
 
     client.sort('x', 'desc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(sorted);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, [9, 4, 3, 2], "testSORT");
     });
 
@@ -1078,7 +1078,7 @@ function testSORT() {
 
     client.sort('x', 'by', 'w*', 'asc', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(sorted);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, [3, 9, 4, 2], "testSORT");
     });
 
@@ -1086,7 +1086,7 @@ function testSORT() {
 
     client.sort('x', 'by', 'w*', 'asc', 'get', 'o*', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(sorted);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['foo', 'bar', 'baz', 'buz'], "testSORT");
     });
 
@@ -1094,7 +1094,7 @@ function testSORT() {
 
     client.sort('x', 'by', 'w*', 'asc', 'get', 'o*', 'get', 'p*', function (err, sorted) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(sorted);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(sorted);
         checkDeepEqual(sorted, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
     });
 
@@ -1108,7 +1108,7 @@ function testSORT() {
 
     client.lrange('bacon', 0, -1, function (err, values) {
         if (err) assert.fail(err, "testSORT");
-        convertMultiBulkBuffersToUTF8Strings(values);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(values);
         checkDeepEqual(values, ['foo', 'bux', 'bar', 'tux', 'baz', 'lux', 'buz', 'qux'], "testSORT");
     });
 }
@@ -1200,19 +1200,19 @@ function testZRANGE() {
 
     client.zrange('z0', 0, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGE");
     });
 
     client.zrange('z0', -1, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm2' ], "testZRANGE");
     });
 
     client.zrange('z0', -2, -1, function (err, members) {
         if (err) assert.fail(err, "testZRANGE");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm1', 'm2' ], "testZRANGE");
     });
 }
@@ -1224,7 +1224,7 @@ function testZREVRANGE() {
 
     client.zrevrange('z0', 0, 1000, function (err, members) {
         if (err) assert.fail(err, "testZREVRANGE");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm2', 'm1', 'm0' ], "testZREVRANGE");
     });
 }
@@ -1236,13 +1236,13 @@ function testZRANGEBYSCORE() {
 
     client.zrangebyscore('z0', 200, 300, function (err, members) {
         if (err) assert.fail(err, "testZRANGEBYSCORE 4");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm1', 'm2' ], "testZRANGEBYSCORE 5");
     });
 
     client.zrangebyscore('z0', 100, 1000, function (err, members) {
         if (err) assert.fail(err, "testZRANGEBYSCORE 6");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'm0', 'm1', 'm2' ], "testZRANGEBYSCORE 7");
     });
 
@@ -1279,7 +1279,7 @@ function testZINTER() {
     client.zinter('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(1, "testZINTER"));
     client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZINTER");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         checkDeepEqual(members, [ 'a', 4 ], "testZINTER");    // score=1+3
     });
 }
@@ -1291,7 +1291,7 @@ function testZUNION() {
     client.zunion('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(2, "testZUNION"));
     client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZUNION");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         check(members.length % 2 == 0, "testZUNION");
         var set = {};
         for (var i=0; i<members.length; i += 2)
@@ -1329,7 +1329,7 @@ function testZREMRANGEBYRANK() {
 
     client.zrange('z0', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZREMRANGEBYRANK");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         check(members.length % 2 == 0, "testZREMRANGEBYRANK");
         var set = {};
         for (var i=0; i<members.length; i += 2)
@@ -1348,7 +1348,7 @@ function testZREMRANGEBYSCORE() {
 
     client.zrange('z0', 0, -1, 'WITHSCORES', function (err, members) {
         if (err) assert.fail(err, "testZREMRANGEBYSCORE");
-        convertMultiBulkBuffersToUTF8Strings(members);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(members);
         check(members.length % 2 == 0, "testZREMRANGEBYSCORE");
         var set = {};
         for (var i=0; i<members.length; i += 2)
@@ -1382,7 +1382,7 @@ function testHGETALL() {
     client.hset("foo", "quux", "doo", expectNumber(1, "testHGETALL"));
     client.hgetall("foo", function (err, all) {
         if (err) assert.fail(err, "testHGETALL");
-        convertMultiBulkBuffersToUTF8Strings(all);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(all);
         checkDeepEqual(all, { bar:"baz", quux:"doo" }, "testHGETALL");
     });
 }
@@ -1400,7 +1400,7 @@ function testHKEYS() {
     client.hset("foo", "quux", "doo", expectNumber(1, "testHKEYS"));
     client.hkeys("foo", function (err, reply) {
         if (err) assert.fail(err, "testHKEYS");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply.sort(), [ "bar", "quux" ], "testHKEYS");
     });
 }
@@ -1410,7 +1410,7 @@ function testHVALS() {
     client.hset("foo", "quux", "doo", expectNumber(1, "testHVALS"));
     client.hvals("foo", function (err, reply) {
         if (err) assert.fail(err, "testHVALS");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply.sort(), [ "baz", "doo" ], "testHVALS");
     });
 }
@@ -1443,25 +1443,25 @@ function testHSET() {
 function testSUBSCRIBE() {
     client.subscribe("#redis", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "subscribe", "#redis", "1" ], "testSUBSCRIBE");
     });
 
     client.subscribe("#Node.js", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "subscribe", "#Node.js", "2" ], "testSUBSCRIBE");
     });
 
     client.unsubscribe("#redis", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "unsubscribe", "#redis", "1" ], "testSUBSCRIBE");
     });
 
     client.unsubscribe("#Node.js", function (err, reply) {
         if (err) assert.fail(err, "testSUBSCRIBE");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "unsubscribe", "#Node.js", "0" ], "testSUBSCRIBE");
     });
 }
@@ -1473,13 +1473,13 @@ function testUNSUBSCRIBE() {
 function testPSUBSCRIBE() {
     client.psubscribe("cooking.*", function (err, reply) {
         if (err) assert.fail(err, "testPSUBSCRIBE");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "psubscribe", "cooking.*", "1" ], "testPSUBSCRIBE");
     });
 
     client.punsubscribe("cooking.*", function (err, reply) {
         if (err) assert.fail(err, "testPSUBSCRIBE");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "punsubscribe", "cooking.*", "0" ], "testPSUBSCRIBE");
     });
 }
@@ -1521,19 +1521,6 @@ function testSUBSCRIBEandPUBLISH() {
 // without using a timeout.  That being said, we can test the non-blocking
 // behavior by ensuring there's an element in a list that we try to pop from.
 
-function convertMultiBulkBuffersToUTF8Strings(o) {
-    if (o instanceof Array) {
-        for (var i=0; i<o.length; ++i) 
-            if (o[i] instanceof Buffer) 
-                o[i] = o[i].utf8Slice(0, o[i].length);
-    } else if (o instanceof Object) {
-        var props = Object.getOwnPropertyNames(o);
-        for (var i=0; i<props.length; ++i) 
-            if (o[props[i]] instanceof Buffer) 
-                o[props[i]] = o[props[i]].utf8Slice(0, o[props[i]].length);
-    }
-}
-
 function testBLPOP() {
     var timeout = 1;
 
@@ -1542,7 +1529,7 @@ function testBLPOP() {
     client.lpush('list0', 'ABC', expectNumber(1, "testBLPOP 1"));
     client.blpop('list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBLPOP 2");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "list0", "ABC" ], "testBLPOP 3");
     });
 
@@ -1552,7 +1539,7 @@ function testBLPOP() {
     client.lpush('list0', 'ABC', expectNumber(1, "testBLPOP 4"));
     client.blpop('list1', 'list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBLPOP 5");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "list0", "ABC" ], "testBLPOP 6");
     });
 
@@ -1574,7 +1561,7 @@ function testBRPOP() {
     client.lpush('list0', 'DEF', expectNumber(2, "testBRPOP"));
     client.brpop('list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBRPOP");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "list0", "ABC" ], "testBRPOP");
     });
 
@@ -1584,7 +1571,7 @@ function testBRPOP() {
     client.lpush('list0', 'ABC', expectNumber(2, "testBRPOP"));
     client.brpop('list1', 'list0', timeout, function (err, reply) {
         if (err) assert.fail(err, "testBRPOP");
-        convertMultiBulkBuffersToUTF8Strings(reply);
+        redisclient.convertMultiBulkBuffersToUTF8Strings(reply);
         checkDeepEqual(reply, [ "list0", "DEF" ], "testBRPOP");
     });
 
