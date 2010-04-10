@@ -46,11 +46,7 @@ When working with a Kiwi-based installation:
 
 ## Installation
 
-This version requires at least `Node.js v0.1.33-184-g53dd9fe` and Redis `1.3.8`.
-In short, I'm trying to keep up with Node and Redis HEAD.
-
-A [git tag](http://github.com/fictorial/redis-node-client/tree/node_0.1.33__redis_1.3.8) 
-exists for Node `v0.1.33` as well.
+This version requires at least `Node.js v0.1.90` and Redis `1.3.8`.
 
 You have a number of choices:
 
