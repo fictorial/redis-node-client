@@ -223,7 +223,7 @@ function testParseMultiBulkReply() {
         checkEqual(reply.value[1].value.utf8Slice(0, reply.value[1].value.length), '#redis', "testParseMultiBulkReply d-10");
         checkEqual(reply.value[2].value, 1, "testParseMultiBulkReply d-11");
     });
-    d.feed(bufferFromString("*3\r\n$9\r\nsubscribe\r\n$6\r\n#redis\r\n:1\r\n"));
+    d.feed(bufferFromString("*3\r\n$9\r\nsubscribe\r\n$6\r\n#redis\r\n:1\r\n*3\r\n$7\r\nmessage\r\n"));
 
     var e = new redisclient.ReplyParser(function (reply) {
         checkEqual(reply.type, redisclient.MULTIBULK, "testParseMultiBulkReply e-0");
@@ -1681,7 +1681,7 @@ var allTestFunctions = [
 ];
 
 function checkIfDone() {
-    if (client.callbacks.length == 0) {
+    if (client.originalCommands.length == 0) {
         testSUBSCRIBEandPUBLISH();
         
         var checks = 0;
@@ -1696,7 +1696,7 @@ function checkIfDone() {
         }, 100);
     } else {
         if (verbose)
-            log('info', client.callbacks.length + " callbacks still pending...");
+            log('info', client.originalCommands.length + " replies still pending...");
         else if (!quiet)
             sys.print("+");
     }
@@ -1716,7 +1716,7 @@ function runAllTests() {
         testFunction();
     });
 
-    setInterval(checkIfDone, 100);
+    setInterval(checkIfDone, 1500);
 }
 
 var connectionFailed = false;
