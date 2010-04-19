@@ -1687,27 +1687,62 @@ var allTestFunctions = [
 // after each test and we need 2 steps. If it was run with the other tests the
 // first step's side effects would be flushed when the second step runs.
 
-function testLargeGetSet(callback) {
+function testLargeGetSet() {
+    showTestBanner("testLargeGetSet");
+
     var fileContents = fs.readFileSync(__filename);
 
     if (process._byteLength(fileContents) < client.requestBuffer.length) 
         assert.fail("the request buffer will not be forced to grow", "testGET (large; 0)");
 
     client.set('largetestfile', fileContents, function (err, value) {
-      if (err) assert.fail(err, "testGET (large; 1)");
-      assert.equal(value, true, "testGET (large; 2)");
+        if (err) assert.fail(err, "testGET (large; 1)");
+        assert.equal(value, true, "testGET (large; 2)");
 
-      client.get('largetestfile', function (err, value) {
-          if (err) assert.fail(err, "testGET (large; 3)");
-          checkEqual(value.utf8Slice(0, value.length), fileContents, "testGET (large; 4)");
-          callback();
-      });
+        client.get('largetestfile', function (err, value) {
+            if (err) assert.fail(err, "testGET (large; 3)");
+            checkEqual(value.utf8Slice(0, value.length), fileContents, "testGET (large; 4)");
+            testStoreAnImage();
+        });
+    });
+}
+
+// Test binary-safety of values by storing an image (a PNG file).
+// This might be used in a PUBSUB-based app or some-such (hand-waving).
+
+function testStoreAnImage(callback) {
+    showTestBanner("testStoreAnImage");
+
+    var fileContents = fs.readFileSync('sample.png', 'binary');
+
+    if (!fileContents || fileContents.length == 0) {
+      sys.error("\nFailed to load sample.png -- skipping binary-safety test.\n");
+      testSUBSCRIBEandPUBLISH();
+      return;
+    }
+
+    // You can pass Buffer objects to the client's methods.
+
+    var imageBuffer = new Buffer(process._byteLength(fileContents));
+    imageBuffer.binaryWrite(fileContents, 0);
+
+    client.set('png_image', imageBuffer, function (err, value) {
+        if (err) assert.fail(err, "testStoreAnImage (large; 1)");
+        assert.equal(value, true, "testStoreAnImage (large; 2)");
+
+        client.get('png_image', function (err, value) {
+            if (err) assert.fail(err, "testStoreAnImage (large; 3)");
+            checkEqual(value.binarySlice(0, value.length), 
+                       imageBuffer.binarySlice(0, imageBuffer.length), 
+                       "testStoreAnImage (large; 4)");
+            testSUBSCRIBEandPUBLISH();
+        });
     });
 }
 
 function checkIfDone() {
     if (client.originalCommands.length == 0) {
-        testLargeGetSet(testSUBSCRIBEandPUBLISH);
+        testLargeGetSet();
         
         var checks = 0;
         setInterval(function () {
@@ -1727,16 +1762,19 @@ function checkIfDone() {
     }
 }
 
+function showTestBanner(name) {
+    if (verbose) {
+        sys.error("");
+        log("info", "Testing " + name);
+        sys.error("=========================================");
+    } else if (!quiet) {
+        sys.print(".");
+    }
+}
+
 function runAllTests() {
     allTestFunctions.forEach(function (testFunction) {
-        if (verbose) {
-            sys.error("");
-            log("info", "Testing " + testFunction.name.replace(/^test/, ''));
-            sys.error("=========================================");
-        } else if (!quiet) {
-            sys.print(".");
-        }
-
+        showTestBanner(testFunction.name.replace(/^test/, ''));
         clearTestDatabasesBeforeEachTest();
         testFunction();
     });
