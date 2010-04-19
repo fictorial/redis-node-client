@@ -10,7 +10,6 @@
 
 ## Later
 
-- Create a free list for request buffers instead of allocating one for each request?
 - Provide wrapper around the pretty-raw sort method?
 
 ## Maybe
