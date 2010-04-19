@@ -1713,12 +1713,20 @@ function testLargeGetSet() {
 function testStoreAnImage(callback) {
     showTestBanner("testStoreAnImage");
 
-    var fileContents = fs.readFileSync('sample.png', 'binary');
-
-    if (!fileContents || fileContents.length == 0) {
-      sys.error("\nFailed to load sample.png -- skipping binary-safety test.\n");
-      testSUBSCRIBEandPUBLISH();
-      return;
+    var paths = [ "sample.png", "test/sample.png" ];
+    var path = paths.shift();
+    while (true) {
+      try {
+        var fileContents = fs.readFileSync(path, 'binary');
+        break;
+      } catch (e) {
+        path = paths.shift();
+        if (!path) {
+          sys.error("\nFailed to load sample.png -- skipping binary-safety test.\n");
+          testSUBSCRIBEandPUBLISH();
+          return;
+        }
+      }
     }
 
     // You can pass Buffer objects to the client's methods.
