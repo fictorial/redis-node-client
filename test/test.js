@@ -41,6 +41,7 @@ var TEST_DB_NUMBER = 15,
 
 var sys = require("sys"),
     assert = require("assert"),
+    fs = require("fs"),
     redisclient = require("../lib/redis-client"),
     Buffer = require("buffer").Buffer;
 
@@ -1680,9 +1681,33 @@ var allTestFunctions = [
     testZUNION,
 ];
 
+// Check buffer resizing of input buffer by loading a "large" data and reading
+// it back in 2 steps. We use this test js source file for a "large" data
+// source. NB: this test must be run separately because the database is flushed
+// after each test and we need 2 steps. If it was run with the other tests the
+// first step's side effects would be flushed when the second step runs.
+
+function testLargeGetSet(callback) {
+    var fileContents = fs.readFileSync(__filename);
+
+    if (process._byteLength(fileContents) < client.requestBuffer.length) 
+        assert.fail("the request buffer will not be forced to grow", "testGET (large; 0)");
+
+    client.set('largetestfile', fileContents, function (err, value) {
+      if (err) assert.fail(err, "testGET (large; 1)");
+      assert.equal(value, true, "testGET (large; 2)");
+
+      client.get('largetestfile', function (err, value) {
+          if (err) assert.fail(err, "testGET (large; 3)");
+          checkEqual(value.utf8Slice(0, value.length), fileContents, "testGET (large; 4)");
+          callback();
+      });
+    });
+}
+
 function checkIfDone() {
     if (client.originalCommands.length == 0) {
-        testSUBSCRIBEandPUBLISH();
+        testLargeGetSet(testSUBSCRIBEandPUBLISH);
         
         var checks = 0;
         setInterval(function () {
@@ -1691,7 +1716,7 @@ function checkIfDone() {
                 log("info", "All tests have passed.");
                 process.exit(0);
             } else {
-                assert.notEqual(++checks, 5, "testSUBSCRIBEandPUBLISH never received message");
+                assert.notEqual(++checks, 20, "testSUBSCRIBEandPUBLISH never received message");
             } 
         }, 100);
     } else {
@@ -1742,4 +1767,3 @@ function printDisclaimer() {
     if (redisclient.debugMode) 
         sys.debug("This test does not do anything");
 }
-
