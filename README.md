@@ -48,6 +48,8 @@ When working with a Kiwi-based installation:
 
 This version requires at least `Node.js v0.1.90` and Redis `1.3.8`.
 
+Tested with node `v0.1.91-20-g6e715b8`.
+
 You have a number of choices:
 
 - git clone this repo or download a tarball and simply copy `lib/redis-client.js` into your project
