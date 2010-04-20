@@ -1790,13 +1790,15 @@ function runAllTests() {
     setInterval(checkIfDone, 1500);
 }
 
-var connectionFailed = false;
-var client = redisclient.createClient();
-client.stream.addListener("connect", runAllTests);
-client.stream.addListener("close", function (inError) {
-    connectionFailed = inError;
-    if (inError)
-        throw new Error("Connection to Redis failed. Not attempting reconnection.");
+// Do not reconnect in tests to keep things simple. 
+// Redis must stay up during the tests.
+
+var client = redisclient.createClient(redisclient.DEFAULT_PORT, redisclient.DEFAULT_HOST, 
+    { maxReconnectionAttempts: 0 });
+client.addListener("connected", runAllTests);
+client.addListener("noconnection", function () {
+    sys.error("Connection to Redis failed. Not attempting reconnection.");
+    process.exit(1);
 });
 
 function debugFilter(what) {

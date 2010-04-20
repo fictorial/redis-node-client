@@ -10,7 +10,7 @@
 - *You have to understand how Redis works and the semantics of its command set to most effectively use this client*
 - Supports Redis' new exciting [PUBSUB](http://code.google.com/p/redis/wiki/PublishSubscribe) commands
 - Automatically reconnects to Redis (doesn't drop commands sent while waiting to reconnect either) using [exponential backoff](http://en.wikipedia.org/wiki/Exponential_backoff)
-    - **This is a work in progress (untagged HEAD)**
+    - Be sure to see [this script](http://github.com/fictorial/redis-node-client/blob/master/test/test_shutdown_reconnect.js) for a deeper discussion
 
 ## Synopsis
 
