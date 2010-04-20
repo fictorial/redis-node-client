@@ -3,15 +3,13 @@
 // This script plays the role of listener/subscriber/consumer
 // to **all** channels/classes.
 
-var sys = require("sys");
-var redis = require("../lib/redis-client");
+var 
+  sys = require("sys"),
+  client = require("../lib/redis-client").createClient();
 
-//redis.debugMode = true;
-var client = redis.createClient();
-    
-client.stream.addListener("connect", function () {
-    sys.puts("waiting for messages...");
-    client.subscribeTo("*", function (channel, message) {
-        sys.puts("[" + channel + "]: " + message);
-    });
-});
+sys.puts("waiting for messages...");
+
+client.subscribeTo("*", 
+  function (channel, message) {
+    sys.puts("[" + channel + "]: " + message);
+  });
