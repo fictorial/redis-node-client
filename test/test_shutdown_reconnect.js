@@ -8,7 +8,7 @@
 //
 // Load up a test Redis instance in the foreground (daemonize off).  Then in
 // another terminal run test/test_shutdown_reconnect.js This will issue 50,000
-// GET commands.  While the output is scrolling by, kill Redis in the first
+// INCR commands.  While the output is scrolling by, kill Redis in the first
 // terminal (^C should do fine).  You should see the client tell you it is
 // queueing commands.  Then, restart Redis.  Watch as the client submits the
 // queued commands after the current reconnection timeout expires.  Don't 
