@@ -8,11 +8,6 @@
   reply, does not handle multi-bulk replies inside multi-bulk replies.
   This is required for MULTI/EXEC.
 
-- Fix reconnection logic.
-    - Queue all commands.
-    - If stream is writable, write.
-    - On reconnection established, send 
-
 ## Later
 
 - Provide wrapper around the pretty-raw sort method?
