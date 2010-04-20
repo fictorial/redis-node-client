@@ -5,24 +5,22 @@
 - Talk to Redis from Node.js 
 - Fully asynchronous; your code is called back when an operation completes
 - [Binary-safe](http://github.com/fictorial/redis-node-client/blob/master/test/test.js#L353-363); uses Node.js Buffer objects for request serialization and reply parsing
+    - e.g. store a PNG in Redis if you'd like
 - Client API directly follows Redis' [command specification](http://code.google.com/p/redis/wiki/CommandReference) 
 - *You have to understand how Redis works and the semantics of its command set to most effectively use this client*
-- Supports Redis' new exciting PUBSUB commands
-
-Recent changes completely break backwards compatibility.  Sorry, it was time.
+- Supports Redis' new exciting [PUBSUB](http://code.google.com/p/redis/wiki/PublishSubscribe) commands
+- Automatically reconnects to Redis (doesn't drop commands sent while waiting to reconnect either) using [exponential backoff](http://en.wikipedia.org/wiki/Exponential_backoff)
 
 ## Synopsis
 
 When working from a git clone:
 
-    var client = require("./lib/redis-client").createClient(); 
     var sys = require("sys");
-    client.stream.addListener("connect", function () {
-        client.info(function (err, info) {
-            if (err) throw new Error(err);
-            sys.puts("Redis Version is: " + info.redis_version);
-            client.close();
-        });
+    var client = require("../lib/redis-client").createClient();
+    client.info(function (err, info) {
+        if (err) throw new Error(err);
+        sys.puts("Redis Version is: " + info.redis_version);
+        client.close();
     });
 
 When working with a Kiwi-based installation:
@@ -33,12 +31,10 @@ When working with a Kiwi-based installation:
         kiwi = require("kiwi"),
         client = kiwi.require("redis-client").createClient();
 
-    client.stream.addListener("connect", function () {
-        client.info(function (err, info) {
-            if (err) throw new Error(err);
-            sys.puts("Redis Version is: " + info.redis_version);
-            client.close();
-        });
+    client.info(function (err, info) {
+        if (err) throw new Error(err);
+        sys.puts("Redis Version is: " + info.redis_version);
+        client.close();
     });
 
 - Refer to the many tests in `test/test.js` for many usage examples.
