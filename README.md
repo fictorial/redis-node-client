@@ -52,7 +52,6 @@ You have a number of choices:
 - git clone this repo or download a tarball and simply copy `lib/redis-client.js` into your project
 - use git submodule
 - use the [Kiwi](http://github.com/visionmedia/kiwi) package manager for Node.js
-- use the [NPM](http://github.com/isaacs/npm) package manager for Node.js
 
 Please let me know if the package manager "seeds" and/or metadata have issues.
 Installation via Kiwi or NPM at this point isn't really possible since this repo
