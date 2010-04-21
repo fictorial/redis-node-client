@@ -1692,7 +1692,7 @@ function testLargeGetSet() {
 
     var fileContents = fs.readFileSync(__filename);
 
-    if (process._byteLength(fileContents) < client.requestBuffer.length) 
+    if (Buffer.byteLength(fileContents) < client.requestBuffer.length) 
         assert.fail("the request buffer will not be forced to grow", "testGET (large; 0)");
 
     client.set('largetestfile', fileContents, function (err, value) {
@@ -1731,7 +1731,7 @@ function testStoreAnImage(callback) {
 
     // You can pass Buffer objects to the client's methods.
 
-    var imageBuffer = new Buffer(process._byteLength(fileContents));
+    var imageBuffer = new Buffer(Buffer.byteLength(fileContents));
     imageBuffer.binaryWrite(fileContents, 0);
 
     client.set('png_image', imageBuffer, function (err, value) {
