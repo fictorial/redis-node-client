@@ -101,10 +101,3 @@ and [this](http://github.com/fictorial/redis-node-client/blob/master/examples/su
 All commands/requests use the Redis *multi-bulk request* format which will be
 the only accepted request protocol come Redis 2.0.
 
-## Metadata
-
-- *Author*: Brian Hammond (brian at fictorial dot com) with various patches 
-  from nice people everywhere.
-- *Copyright*: Copyright (C) 2010 Fictorial LLC.
-- *License*: MIT
-
