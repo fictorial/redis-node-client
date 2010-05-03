@@ -10,6 +10,10 @@ var
 sys.puts("waiting for messages...");
 
 client.subscribeTo("*", 
-  function (channel, message) {
-    sys.puts("[" + channel + "]: " + message);
+  function (channel, message, subscriptionPattern) {
+    var output = "[" + channel;
+    if (subscriptionPattern)
+      output += " (from pattern '" + subscriptionPattern + "')";
+    output += "]: " + message;
+    sys.puts(output);
   });
