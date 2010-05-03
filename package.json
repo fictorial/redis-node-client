@@ -1,7 +1,7 @@
 {
   "name": "redis-node-client",
   "description": "Redis client for Node.js",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "keywords": [ "redis", "node", "client" ],
   "author": "Brian Hammond <brian@fictorial.com>",
   "contributors": [
