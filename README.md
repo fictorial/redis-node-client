@@ -45,7 +45,7 @@ When working with a Kiwi-based installation:
 
 This version requires at least `Node.js v0.1.90` and Redis `1.3.8`.
 
-Tested with node `v0.1.91-20-g6e715b8`.
+Tested with Node.js `v0.1.93` and Redis `1.3.10`.
 
 You have a number of choices:
 
