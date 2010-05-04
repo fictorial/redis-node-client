@@ -337,6 +337,14 @@ function testMGET() {
         checkEqual(values[0], 'bar', "testMGET");
         checkEqual(values[1], 'buz', "testMGET");
     });
+
+    // Accept an Array for the keys to MGET as well.
+
+    client.mget(['foo', 'baz'], function (err, values) {
+        if (err) assert.fail(err, "testMGET");
+        checkEqual(values[0], 'bar', "testMGET");
+        checkEqual(values[1], 'buz', "testMGET");
+    });
 }
 
 function testGETSET() {

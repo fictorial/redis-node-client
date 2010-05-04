@@ -1,7 +1,7 @@
 {
   "name": "redis-node-client",
   "description": "Redis client for Node.js",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "keywords": [ "redis", "node", "client" ],
   "author": "Brian Hammond <brian@fictorial.com>",
   "contributors": [
@@ -16,7 +16,8 @@
     { "name": "technoweenie (rick)", "web": "http://techno-weenie.net" },
     { "name": "Donovan Hide", "web": "http://availableimagination.com" },
     { "name": "Philip Hofstetter", "web": "http://www.gnegg.ch/" },
-    { "name": "Chris Winberry", "web": "http://tautologistics.com/" }
+    { "name": "Chris Winberry", "web": "http://tautologistics.com/" },
+    { "name": "Brian McKinney", "web": "http://twitter.com/tritonrc" }
   ],
   "licenses": [ "MIT" ],
   "repositories": {
