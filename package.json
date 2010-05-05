@@ -28,5 +28,6 @@
   "directories": { "lib": "./lib", "test": "./test" },
   "os": [ "linux", "darwin" ],
   "dependencies": {},
-  "engines": { "node":  ">0.1.90" }
+  "engines": { "node":  ">0.1.90" },
+  "main": "./redis-client"
 }
