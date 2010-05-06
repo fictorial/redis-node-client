@@ -447,6 +447,18 @@ function testKEYS() {
         redisclient.convertMultiBulkBuffersToUTF8Strings(keys);
         checkDeepEqual(keys.sort(), ['boo'], "testKEYS");
     });
+
+    // Now try a key with a space in it.
+    // At this point we have keys: foo1, foo2, baz, boo, a key is this
+
+    client.set('a key is this', 'whatever', expectOK("testKEYS"))
+
+    client.keys('*', function (err, keys) {
+        if (err) assert.fail(err, "testKEYS");
+        checkEqual(keys.length, 5, "testKEYS");
+        redisclient.convertMultiBulkBuffersToUTF8Strings(keys);
+        checkDeepEqual(keys.sort(), ['a key is this', 'baz', 'boo', 'foo1', 'foo2'], "testKEYS");
+    });
 }
 
 function testRANDOMKEY() {
