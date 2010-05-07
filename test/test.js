@@ -1743,13 +1743,7 @@ var allTestFunctions = [
 function testLargeGetSet() {
     showTestBanner("testLargeGetSet");
 
-    var fileContents = fs.readFileSync(__filename);
-
-//    if (Buffer.byteLength(fileContents) < client.requestBuffer.length) {
-//        sys.debug(Buffer.byteLength(fileContents));
-//        sys.debug(client.requestBuffer.length);
-//        assert.fail("the request buffer will not be forced to grow", "testGET (large; 0)");
-//    }
+    var fileContents = fs.readFileSync(__filename, "binary");
 
     var wasDebugMode = redisclient.debugMode;
     redisclient.debugMode = false;
@@ -1763,7 +1757,7 @@ function testLargeGetSet() {
 
         client.get('largetestfile', function (err, value) {
             if (err) assert.fail(err, "testGET (large; 3)");
-            checkEqual(value.utf8Slice(0, value.length), fileContents, "testGET (large; 4)");
+            checkEqual(value.binarySlice(0, value.length), fileContents, "testGET (large; 4)");
             redisclient.debugMode = wasDebugMode;
             testStoreAnImage();
         });
