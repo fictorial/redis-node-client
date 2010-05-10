@@ -1,5 +1,5 @@
 {
-  "name": "redis-node-client",
+  "name": "redis-client",
   "description": "Redis client for Node.js",
   "version": "0.3.3",
   "keywords": [ "redis", "node", "client" ],
