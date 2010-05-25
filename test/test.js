@@ -1324,8 +1324,6 @@ function testZINCRBY() {
     client.zincrby('z0', 1, 'a', expectNumber(2, "testZINCRBY"));
 }
 
-// This really should be called ZINTERSTORESTORE.
-
 function testZINTERSTORE() {
     client.zadd('z0', 1, 'a', expectNumber(1, "testZINTERSTORE"));
     client.zadd('z0', 2, 'b', expectNumber(1, "testZINTERSTORE"));
