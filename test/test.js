@@ -1324,33 +1324,33 @@ function testZINCRBY() {
     client.zincrby('z0', 1, 'a', expectNumber(2, "testZINCRBY"));
 }
 
-// This really should be called ZINTERSTORE.
+// This really should be called ZINTERSTORESTORE.
 
-function testZINTER() {
-    client.zadd('z0', 1, 'a', expectNumber(1, "testZINTER"));
-    client.zadd('z0', 2, 'b', expectNumber(1, "testZINTER"));
-    client.zadd('z1', 3, 'a', expectNumber(1, "testZINTER"));
-    client.zinter('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(1, "testZINTER"));
+function testZINTERSTORE() {
+    client.zadd('z0', 1, 'a', expectNumber(1, "testZINTERSTORE"));
+    client.zadd('z0', 2, 'b', expectNumber(1, "testZINTERSTORE"));
+    client.zadd('z1', 3, 'a', expectNumber(1, "testZINTERSTORE"));
+    client.zinterstore('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(1, "testZINTERSTORE"));
     client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
-        if (err) assert.fail(err, "testZINTER");
+        if (err) assert.fail(err, "testZINTERSTORE");
         redisclient.convertMultiBulkBuffersToUTF8Strings(members);
-        checkDeepEqual(members, [ 'a', 4 ], "testZINTER");    // score=1+3
+        checkDeepEqual(members, [ 'a', 4 ], "testZINTERSTORE");    // score=1+3
     });
 }
 
-function testZUNION() {
-    client.zadd('z0', 1, 'a', expectNumber(1, "testZUNION"));
-    client.zadd('z0', 2, 'b', expectNumber(1, "testZUNION"));
-    client.zadd('z1', 3, 'a', expectNumber(1, "testZUNION"));
-    client.zunion('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(2, "testZUNION"));
+function testZUNIONSTORE() {
+    client.zadd('z0', 1, 'a', expectNumber(1, "testZUNIONSTORE"));
+    client.zadd('z0', 2, 'b', expectNumber(1, "testZUNIONSTORE"));
+    client.zadd('z1', 3, 'a', expectNumber(1, "testZUNIONSTORE"));
+    client.zunionstore('z2', 2, 'z0', 'z1', 'AGGREGATE', 'SUM', expectNumber(2, "testZUNIONSTORE"));
     client.zrange('z2', 0, -1, 'WITHSCORES', function (err, members) {
-        if (err) assert.fail(err, "testZUNION");
+        if (err) assert.fail(err, "testZUNIONSTORE");
         redisclient.convertMultiBulkBuffersToUTF8Strings(members);
-        check(members.length % 2 == 0, "testZUNION");
+        check(members.length % 2 == 0, "testZUNIONSTORE");
         var set = {};
         for (var i=0; i<members.length; i += 2)
             set[members[i]] = members[i + 1];
-        checkDeepEqual(set, { a:4, b:2 }, "testZUNION");    // a's score=1+3
+        checkDeepEqual(set, { a:4, b:2 }, "testZUNIONSTORE");    // a's score=1+3
     });
 }
 
@@ -1725,7 +1725,7 @@ var allTestFunctions = [
     testZCARD,
     testZCOUNT,
     testZINCRBY,
-    testZINTER,
+    testZINTERSTORE,
     testZRANGE,
     testZRANGEBYSCORE,
     testZRANK,
@@ -1735,7 +1735,7 @@ var allTestFunctions = [
     testZREVRANGE,
     testZREVRANK,
     testZSCORE,
-    testZUNION,
+    testZUNIONSTORE,
 ];
 
 // Check buffer resizing of input buffer by loading a "large" data and reading
