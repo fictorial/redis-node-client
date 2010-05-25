@@ -1191,6 +1191,10 @@ function testMSET() {
     // set a=b, c=d, e=100
 
     client.mset('a', 'b', 'c', 'd', 'e', 100, expectOK("testMSET"));
+
+    // Accept an Array for the keys to MSET as well.
+
+    client.mset([ 'a', 'b', 'c', 'd', 'e', 100 ], expectOK("testMSET"));
 }
 
 function testMSETNX() {
@@ -1743,24 +1747,32 @@ var allTestFunctions = [
 function testLargeGetSet() {
     showTestBanner("testLargeGetSet");
 
-    var fileContents = fs.readFileSync(__filename, "binary");
+    fs.readFile(__filename, function (err, fileContents) {    // no encoding = Buffer
+      if (err) assert.fail(err, "testLargeGetSet; 1");
 
-    var wasDebugMode = redisclient.debugMode;
-    redisclient.debugMode = false;
+      var wasDebugMode = redisclient.debugMode;
+      redisclient.debugMode = false;
 
-    if (verbose && wasDebugMode)
-      sys.debug("** debug output disabled for this test");
+      if (verbose && wasDebugMode)
+	sys.debug("** debug output disabled for this test");
 
-    client.set('largetestfile', fileContents, function (err, value) {
-        if (err) assert.fail(err, "testGET (large; 1)");
-        assert.equal(value, true, "testGET (large; 2)");
+      client.set('largetestfile', fileContents, function (err, value) {
+	  if (err) assert.fail(err, "testGET (large; 1)");
+	  assert.equal(value, true, "testGET (large; 2)");
 
-        client.get('largetestfile', function (err, value) {
-            if (err) assert.fail(err, "testGET (large; 3)");
-            checkEqual(value.binarySlice(0, value.length), fileContents, "testGET (large; 4)");
-            redisclient.debugMode = wasDebugMode;
-            testStoreAnImage();
-        });
+	  client.get('largetestfile', function (err, value) {
+	      if (err) assert.fail(err, "testGET (large; 3)");
+
+              checkEqual(value.length, fileContents.length, "testLargeGetSet sizes");
+
+              for (var i=0; i<value.length; ++i)
+                  if (value[i] != fileContents[i])
+                      checkEqual(value[i], fileContents[i], "testLargeGetSet @ index " + i);
+
+	      redisclient.debugMode = wasDebugMode;
+	      testStoreAnImage();
+	  });
+      });
     });
 }
 
