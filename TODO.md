@@ -8,6 +8,11 @@
   reply, does not handle multi-bulk replies inside multi-bulk replies.
   This is required for MULTI/EXEC.
 
+- WATCH support
+
+- Now that Node.js has UDP support and Redis 2.0 will have UDP support,
+  I suppose we should add, you know, UDP support here.
+
 ## Later
 
 - Provide wrapper around the pretty-raw sort method?
