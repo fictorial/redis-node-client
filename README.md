@@ -1,4 +1,4 @@
-# Redis client for Node.js
+# Redis client for Node.js ![Project Status](http://stillmaintained.com/fictorial/redis-node-client.png)
 
 ## In a nutshell
 
